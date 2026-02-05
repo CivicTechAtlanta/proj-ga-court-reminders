@@ -1,0 +1,13 @@
+# pyproject.toml
+[project]
+name = "court-reminders"
+version = "0.1.0"
+description = "Georgia Court Reminders - Hello World"
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.0",
+    "gunicorn>=21.0",
+]
+
+[dependency-groups]
+dev = []
