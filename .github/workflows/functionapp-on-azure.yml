@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - create-function #DELETE BEFORE MERGE
 
 # CONFIGURATION
 # For help, go to https://github.com/Azure/Actions
@@ -14,9 +13,9 @@ on:
 #
 # 2. Change these variables for your configuration:
 env:
-  AZURE_FUNCTIONAPP_NAME: 'choose-your-own-adventure-demo'   # set this to your function app name on Azure
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: './choose-your-own-adventure-demo/'       # set this to the path to your function app project, defaults to the repository root
-  PYTHON_VERSION: '3.12'                     # set this to the python version to use (e.g. '3.6', '3.7', '3.8')
+  AZURE_FUNCTIONAPP_NAME: 'choose-your-own-adventure-demo'
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: './choose-your-own-adventure-demo/'
+  PYTHON_VERSION: '3.12'
 
 jobs:
   build-and-deploy:
@@ -48,5 +47,3 @@ jobs:
         publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
         scm-do-build-during-deployment: true 
         enable-oryx-build: true 
-
-# For more samples to get started with GitHub Action workflows to deploy to Azure, refer to https://github.com/Azure/actions-workflow-samples
