@@ -8,3 +8,8 @@ local.settings.json.copythis
 README.md
 test
 .venv
+src/
+tests/
+pyproject.toml
+uv.lock
+docs/
