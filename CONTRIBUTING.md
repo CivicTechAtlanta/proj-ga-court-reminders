@@ -13,21 +13,11 @@ We generally do development tied to GitHub issues.  Do development on a branch w
 
 ## Local Development Setup
 
-1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
-2. From the repo root:
-   ```bash
-   make setup
-   ```
-3. Start the Azure Function locally:
-   ```bash
-   make run
-   ```
+See [README.md — Local Development](README.md#local-development) for setup instructions and [Running Locally](README.md#running-locally) to start the app.
 
 ## Running Tests
 
-```bash
-make test
-```
+See [README.md — Running Tests](README.md#running-tests).
 
 ## Linting
 
