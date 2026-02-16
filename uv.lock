@@ -231,7 +231,7 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
-test-sms = [
+integration = [
     { name = "python-dotenv" },
 ]
 
@@ -246,7 +246,7 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
-test-sms = [{ name = "python-dotenv" }]
+integration = [{ name = "python-dotenv" }]
 
 [[package]]
 name = "frozenlist"

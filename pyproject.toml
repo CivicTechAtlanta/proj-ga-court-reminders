@@ -16,7 +16,7 @@ dev = [
     "pytest",
     "ruff",
 ]
-test-sms = [
+integration = [
     "python-dotenv",
 ]
 

@@ -4,7 +4,7 @@ Requires a .env file at the repo root with Twilio credentials
 (see .template.env for a template).
 
 Usage:
-    uv run --group test-sms python -m pytest tests/integration/test_twilio_sms.py -v
+    uv run --group integration python -m pytest tests/integration/test_twilio_sms.py -v
 
 Check message logs at: https://console.twilio.com/us1/develop/sms/overview
 """
