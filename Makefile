@@ -1,28 +1,32 @@
-.PHONY: setup run test test-twilio test-azure test-integration test-all lint requirements
+.PHONY: setup run test test-twilio test-azure test-integration test-all lint format requirements
 
 setup:
 	uv sync
+	cp azure_functions/local.settings.copythis.json azure_functions/local.settings.json
 
 run:
-	uv run func start
+	cd azure_functions && uv run func start
 
 test:
 	uv run python -m pytest --ignore=tests/integration
 
 test-twilio:
-	uv run --group test-sms python -m pytest tests/integration -m integration_twilio -v
+	uv run --group integration python -m pytest tests/integration/test_twilio_sms.py -v -rs -s
 
 test-azure:
-	uv run python -m pytest tests/integration -m integration_azure -v
+	uv run python scripts/run_azure_tests.py
 
 test-integration:
-	uv run --group test-sms python -m pytest tests/integration -v
+	uv run --group integration python -m pytest tests/integration -v -rs -s
 
 test-all:
-	uv run --group test-sms python -m pytest -v
+	uv run --group integration python -m pytest -v -rs -s
 
 lint:
 	uv run ruff check .
+
+format:
+	uv run ruff format .
 
 requirements:
 	uv export --no-dev --no-hashes --no-emit-project -o requirements.txt

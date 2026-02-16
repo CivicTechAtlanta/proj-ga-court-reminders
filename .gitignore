@@ -19,7 +19,7 @@ build/
 bin
 obj
 appsettings.json
-local.settings.json
+azure_functions/local.settings.json
 
 # Azurite artifacts
 __blobstorage__

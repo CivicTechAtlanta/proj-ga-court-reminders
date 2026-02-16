@@ -5,20 +5,16 @@ An Azure Functions app that sends SMS court date reminders via Twilio.
 ## Local Development
 
 1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
-2. Install dependencies:
+2. Install dependencies & Create local.settings.json (For details, se "setup" in repo top-level [`Makefile`](./Makefile)):
    ```bash
    make setup
    ```
-3. Create `local.settings.json`:
-   ```bash
-   cp local.settings.json.copythis local.settings.json
-   ```
-4. Install Azure Functions Core Tools:
+3. Install Azure Functions Core Tools:
    ```bash
    npm i -g azure-functions-core-tools@4
    ```
    Alternatively, follow the [official instructions](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local?tabs=macos%2Cisolated-process%2Cnode-v4%2Cpython-v2%2Chttp-trigger%2Ccontainer-apps&pivots=programming-language-python#install-the-azure-functions-core-tools).
-5. Start Azurite storage emulator:
+4. Start Azurite storage emulator:
    ```bash
    docker run -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --disableTelemetry
    ```

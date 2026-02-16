@@ -4,7 +4,7 @@ Requires a .env file at the repo root with Twilio credentials
 (see .template.env for a template).
 
 Usage:
-    uv run --group test-sms python -m pytest tests/integration/test_twilio_sms.py -v
+    uv run --group integration python -m pytest tests/integration/test_twilio_sms.py -v
 
 Check message logs at: https://console.twilio.com/us1/develop/sms/overview
 """
@@ -44,22 +44,31 @@ def sms_config():
 
 def send_reminder(client, sms_config, message):
     """Send a reminder message via Twilio."""
-    return client.messages.create(
+    print(f"Sending: {message}")
+    result = client.messages.create(
         messaging_service_sid=sms_config["messaging_service_sid"],
         to=sms_config["to_number"],
         body=message,
     )
+    print(f"Sent (SID: {result.sid})")
+    return result
 
 
 def test_countdown_reminders(twilio_client, sms_config):
     """Send three countdown reminder messages with delays between each."""
-    msg = send_reminder(twilio_client, sms_config, "You have an appointment in 30 seconds")
+    msg = send_reminder(
+        twilio_client, sms_config, "You have an appointment in 10 seconds"
+    )
     assert msg.sid
-    time.sleep(15)
+    print("Waiting 5s...")
+    time.sleep(5)
 
-    msg = send_reminder(twilio_client, sms_config, "You have an appointment in 15 seconds")
+    msg = send_reminder(
+        twilio_client, sms_config, "You have an appointment in 5 seconds"
+    )
     assert msg.sid
-    time.sleep(15)
+    print("Waiting 5s...")
+    time.sleep(5)
 
     msg = send_reminder(twilio_client, sms_config, "Your appointment is starting")
     assert msg.sid
