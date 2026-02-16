@@ -5,11 +5,13 @@ __blobstorage__
 __queuestorage__
 local.settings.json
 local.settings.json.copythis
-README.md
-test
+*.md
 .venv
 src/
 tests/
 pyproject.toml
 uv.lock
 docs/
+.github/
+Makefile
+LICENSE

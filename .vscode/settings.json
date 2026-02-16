@@ -1,5 +1,5 @@
 {
-    "azureFunctions.deploySubpath": "choose-your-own-adventure-demo",
+    "azureFunctions.deploySubpath": ".",
     "azureFunctions.scmDoBuildDuringDeployment": true,
     "azureFunctions.pythonVenv": ".venv",
     "azureFunctions.projectLanguage": "Python",

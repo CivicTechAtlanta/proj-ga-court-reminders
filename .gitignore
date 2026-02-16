@@ -1,10 +1,31 @@
+# Environments
 .env
 .venv/
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+
+# Distribution / Packaging
 .python_packages/
 .ruff_cache/
+.pytest_cache/
 *.egg-info/
 dist/
 build/
+
+# Azure Functions artifacts
+bin
+obj
+appsettings.json
+local.settings.json
+
+# Azurite artifacts
+__blobstorage__
+__queuestorage__
+__azurite_db*__.json
+.python_packages
+
+# Generated deployment artifact
+requirements.txt

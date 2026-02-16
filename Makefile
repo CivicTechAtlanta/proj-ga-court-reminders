@@ -1,18 +1,28 @@
-DEMO_DIR := choose-your-own-adventure-demo
-
-.PHONY: setup run test lint requirements
+.PHONY: setup run test test-twilio test-azure test-integration test-all lint requirements
 
 setup:
-	cd $(DEMO_DIR) && uv sync
+	uv sync
 
 run:
-	cd $(DEMO_DIR) && uv run func start
+	uv run func start
 
 test:
-	cd $(DEMO_DIR) && uv run python -m pytest
+	uv run python -m pytest --ignore=tests/integration
+
+test-twilio:
+	uv run --group test-sms python -m pytest tests/integration -m integration_twilio -v
+
+test-azure:
+	uv run python -m pytest tests/integration -m integration_azure -v
+
+test-integration:
+	uv run --group test-sms python -m pytest tests/integration -v
+
+test-all:
+	uv run --group test-sms python -m pytest -v
 
 lint:
-	cd $(DEMO_DIR) && uv run ruff check .
+	uv run ruff check .
 
 requirements:
-	cd $(DEMO_DIR) && uv export --no-dev --no-hashes --no-emit-project -o requirements.txt
+	uv export --no-dev --no-hashes --no-emit-project -o requirements.txt

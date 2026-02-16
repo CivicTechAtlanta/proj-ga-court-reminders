@@ -4,7 +4,7 @@ Thanks for your interest in the GA Court Reminders project!
 
 ## Branch Naming
 
-Use the pattern `issue-XX-short-description`, e.g. `issue-18-repo-structure-update`.
+We generally do development tied to GitHub issues.  Do development on a branch with name tied to the issue: use the pattern `issue-XX-short-description`, e.g. `issue-18-repo-structure-update`
 
 ## Pull Requests
 
@@ -38,13 +38,13 @@ make lint
 ## Adding a Dependency
 
 ```bash
-cd choose-your-own-adventure-demo
 uv add <package>
-make requirements   # regenerate requirements.txt for Azure deployment
 ```
+
+`requirements.txt` is generated automatically during CI deployment — no need to commit it.
 
 ## Adding a New Scenario
 
 > This section will be fleshed out after issue #11 is completed.
 
-Place new scenario modules under `choose-your-own-adventure-demo/src/court_reminder/scenarios/`.
+Place new scenario modules under `src/court_reminder/scenarios/`.

@@ -7,8 +7,8 @@ name = "court-reminder"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "azure-functions",
-    "twilio",
+    "azure-functions>=1.24.0,<1.25",
+    "twilio>=9.10.1,<9.11",
 ]
 
 [dependency-groups]
@@ -16,9 +16,16 @@ dev = [
     "pytest",
     "ruff",
 ]
+test-sms = [
+    "python-dotenv",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration_twilio: Twilio SMS integration tests (require credentials)",
+    "integration_azure: Azure Functions integration tests (require running function host)",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/court_reminder"]
