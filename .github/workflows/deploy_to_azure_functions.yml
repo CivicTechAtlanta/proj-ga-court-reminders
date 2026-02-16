@@ -5,9 +5,9 @@ on:
     branches:
       - main
     paths:
-      - 'function_app.py'
-      - 'host.json'
-      - '.funcignore'
+      - 'azure_functions/function_app.py'
+      - 'azure_functions/host.json'
+      - 'azure_functions/.funcignore'
       - 'src/**'
       - 'pyproject.toml'
       - 'uv.lock'
@@ -21,7 +21,7 @@ on:
 # 2. Change these variables for your configuration:
 env:
   AZURE_FUNCTIONAPP_NAME: 'choose-your-own-adventure-demo'
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'azure_functions'
   PYTHON_VERSION: '3.12'
 
 jobs:
@@ -43,12 +43,12 @@ jobs:
     - name: Export requirements.txt from uv.lock
       shell: bash
       run: |
-        uv export --no-dev --no-hashes --no-emit-project -o requirements.txt
+        uv export --no-dev --no-hashes --no-emit-project -o azure_functions/requirements.txt
 
     - name: Install dependencies
       shell: bash
       run: |
-        uv pip install --system . --target=".python_packages/lib/site-packages"
+        uv pip install --system . --target="azure_functions/.python_packages/lib/site-packages"
 
     - name: Deploy to Azure Functions
       uses: Azure/functions-action@v1

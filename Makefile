@@ -2,9 +2,10 @@
 
 setup:
 	uv sync
+	cp azure_functions/local.settings.copythis.json azure_functions/local.settings.json
 
 run:
-	uv run func start
+	cd azure_functions && uv run func start
 
 test:
 	uv run python -m pytest --ignore=tests/integration
