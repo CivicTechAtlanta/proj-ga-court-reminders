@@ -1,11 +1,13 @@
 import azure.functions as func
 import logging
 
+from court_reminder import __version__
+
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
 @app.route(route="twilioHandler")
 def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info('Python HTTP trigger function processed a request.')
+    logging.info('court-reminder %s: HTTP trigger function processed a request.', __version__)
 
     name = req.params.get('name')
     if not name:
