@@ -11,16 +11,16 @@ test:
 	uv run python -m pytest --ignore=tests/integration
 
 test-twilio:
-	uv run --group integration python -m pytest tests/integration/test_twilio_sms.py -v
+	uv run --group integration python -m pytest tests/integration/test_twilio_sms.py -v -rs -s
 
 test-azure:
 	uv run python scripts/run_azure_tests.py
 
 test-integration:
-	uv run --group integration python -m pytest tests/integration -v
+	uv run --group integration python -m pytest tests/integration -v -rs -s
 
 test-all:
-	uv run --group integration python -m pytest -v
+	uv run --group integration python -m pytest -v -rs -s
 
 lint:
 	uv run ruff check .
