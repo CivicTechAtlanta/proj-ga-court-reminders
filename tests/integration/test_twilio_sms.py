@@ -53,11 +53,15 @@ def send_reminder(client, sms_config, message):
 
 def test_countdown_reminders(twilio_client, sms_config):
     """Send three countdown reminder messages with delays between each."""
-    msg = send_reminder(twilio_client, sms_config, "You have an appointment in 30 seconds")
+    msg = send_reminder(
+        twilio_client, sms_config, "You have an appointment in 30 seconds"
+    )
     assert msg.sid
     time.sleep(15)
 
-    msg = send_reminder(twilio_client, sms_config, "You have an appointment in 15 seconds")
+    msg = send_reminder(
+        twilio_client, sms_config, "You have an appointment in 15 seconds"
+    )
     assert msg.sid
     time.sleep(15)
 
