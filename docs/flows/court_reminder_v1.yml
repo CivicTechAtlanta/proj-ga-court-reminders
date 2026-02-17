@@ -1,0 +1,65 @@
+flow_id: court_reminder_v1
+
+steps:
+  welcome:
+    message: |
+      Hi {first_name}, you have a court date at {court_name} on {court_date} at {court_time}.
+      Reply 1 to confirm you received this.
+      Reply 2 if this is a mistake.
+    replies:
+      "1":
+        next: confirmed
+      "2":
+        next: dispute
+    default:
+      next: welcome_reprompt
+
+  welcome_reprompt:
+    message: |
+      Sorry, we didn't understand that. Please reply 1 to confirm your court date or 2 if this is a mistake.
+    replies:
+      "1":
+        next: confirmed
+      "2":
+        next: dispute
+    default:
+      next: unhandled
+
+  confirmed:
+    message: |
+      Got it. We'll send you reminders in the days before your court date.
+      Reply HELP for resources or STOP to opt out.
+    replies:
+      "HELP":
+        next: resources
+      "STOP":
+        next: opt_out
+    default:
+      next: confirmed_reprompt
+
+  dispute:
+    message: |
+      We're sorry for the confusion. Please contact {court_name} directly at {court_phone} to resolve this.
+    terminal: true
+
+  resources:
+    message: |
+      Here are some resources that may help:
+      - Georgia Legal Aid: 1-800-498-9469
+      - {court_name}: {court_phone}
+      Reply 0 to go back.
+    replies:
+      "0":
+        next: confirmed
+    default:
+      next: resources_reprompt
+
+  opt_out:
+    message: |
+      You've been unsubscribed. You won't receive further reminders.
+    terminal: true
+
+  unhandled:
+    message: |
+      We weren't able to understand your reply. Please contact {court_name} directly at {court_phone}.
+    terminal: true
