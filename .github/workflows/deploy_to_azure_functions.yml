@@ -20,7 +20,7 @@ on:
 #
 # 2. Change these variables for your configuration:
 env:
-  AZURE_FUNCTIONAPP_NAME: 'choose-your-own-adventure-demo'
+  AZURE_FUNCTIONAPP_NAME: 'choose-your-own-adventure-demo-flex'
   AZURE_FUNCTIONAPP_PACKAGE_PATH: 'azure_functions'
   PYTHON_VERSION: '3.12'
 

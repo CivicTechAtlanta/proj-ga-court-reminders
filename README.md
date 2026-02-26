@@ -66,11 +66,11 @@ Note, this is likely already set in [Repo > Settings > Secrets and Variables > A
 1. Go to Storage Account "chooseyourownadventure" > Security + Networking > Access Keys
 2. Copy one of the "Connection String" values (either for key1 or key2)
 3. Save into the app settings in Azure, under `AzureWebJobsStorage`
-   - You can access this in the VS Code Azure extension > Function App > choose-your-own-adventure-demo > Application Settings
+   - You can access this in the VS Code Azure extension > Function App > choose-your-own-adventure-demo-flex > Application Settings
 
 ### Example cURL request against deployed app
 
-1. Go to choose-your-own-adventure-demo > Functions > App > Keys, and copy the value from "default"
+1. Go to choose-your-own-adventure-demo-flex > Functions > App > Keys, and copy the value from "default"
 2. Replace `<redacted>` with the key value:
 
 ```bash
