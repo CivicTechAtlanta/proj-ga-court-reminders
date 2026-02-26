@@ -68,20 +68,20 @@ Deployment is handled by the GitHub Action [deploy_to_azure_functions.yml](.gith
 1. Go to Storage Account "chooseyourownadventure" > Security + Networking > Access Keys
 2. Copy one of the "Connection String" values (either for key1 or key2)
 3. Save into the app settings in Azure, under `AzureWebJobsStorage`
-   - You can access this in the VS Code Azure extension > Function App > choose-your-own-adventure-demo-flex > Application Settings
+   - You can access this in the VS Code Azure extension > Function App > choose-your-own-adventure-demo-flex-eus > Application Settings
 
 ### Example cURL request against deployed app
 
 Once the Azure function is deployed, here is how to get the Invoke URL (used below in "Example cURL request against deployed app"):
 
 ```bash
-func azure functionapp list-functions choose-your-own-adventure-demo-flex --show-keys
+func azure functionapp list-functions choose-your-own-adventure-demo-flex-eus --show-keys
 ```
 
 Note, in the URL below, replace `<redacted>` with actual value from Invoke URL
 
 ```bash
-curl -L "https://choose-your-own-adventure-demo-flex.azurewebsites.net/api/twilioHandler?code=<redacted>" \
+curl -L "https://choose-your-own-adventure-demo-flex-eus-dpaedjd2evcxhcd5.eastus-01.azurewebsites.net/api/twiliohandler?code=<redacted>" \
   -H "Content-Type: application/json" \
   --data '{"name": "World"}'
 ```
