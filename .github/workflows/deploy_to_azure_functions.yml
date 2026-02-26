@@ -11,6 +11,7 @@ on:
       - 'src/**'
       - 'pyproject.toml'
       - 'uv.lock'
+  workflow_dispatch:
 
 # CONFIGURATION
 # For help, go to https://github.com/Azure/Actions

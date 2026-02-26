@@ -68,6 +68,10 @@ Note, this is likely already set in [Repo > Settings > Secrets and Variables > A
 3. Save into the app settings in Azure, under `AzureWebJobsStorage`
    - You can access this in the VS Code Azure extension > Function App > choose-your-own-adventure-demo-flex > Application Settings
 
+### Deploy to Azure
+
+This is handled by the GitHub Action [deploy_to_azure_functions.yml](.github/workflows/deploy_to_azure_functions.yml) - when it runs, there will be an app URL in the logs.  This is what is used below in the `curl` request
+
 ### Example cURL request against deployed app
 
 1. Go to choose-your-own-adventure-demo-flex > Functions > App > Keys, and copy the value from "default"
