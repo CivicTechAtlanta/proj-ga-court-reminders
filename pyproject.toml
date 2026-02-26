@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "court-reminder"
 version = "0.1.0"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "azure-functions>=1.24.0,<1.25",
     "twilio>=9.10.1,<9.11",
