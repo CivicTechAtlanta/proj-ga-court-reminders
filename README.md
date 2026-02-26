@@ -59,6 +59,8 @@ Set the repo Actions secret: `AZURE_FUNCTIONAPP_PUBLISH_PROFILE` (found in Azure
 
 Note, this is likely already set in [Repo > Settings > Secrets and Variables > Actions](https://github.com/CivicTechAtlanta/proj-ga-court-reminders/settings/secrets/actions).  Including this section so we explicitly call it out for future maintainers
 
+Deployment is handled by the GitHub Action [deploy_to_azure_functions.yml](.github/workflows/deploy_to_azure_functions.yml)
+
 ## Running in Cloud
 
 ### Setup
@@ -68,17 +70,18 @@ Note, this is likely already set in [Repo > Settings > Secrets and Variables > A
 3. Save into the app settings in Azure, under `AzureWebJobsStorage`
    - You can access this in the VS Code Azure extension > Function App > choose-your-own-adventure-demo-flex > Application Settings
 
-### Deploy to Azure
-
-This is handled by the GitHub Action [deploy_to_azure_functions.yml](.github/workflows/deploy_to_azure_functions.yml) - when it runs, there will be an app URL in the logs.  This is what is used below in the `curl` request
-
 ### Example cURL request against deployed app
 
-1. Go to choose-your-own-adventure-demo-flex > Functions > App > Keys, and copy the value from "default"
-2. Replace `<redacted>` with the key value:
+Once the Azure function is deployed, here is how to get the Invoke URL (used below in "Example cURL request against deployed app"):
 
 ```bash
-curl -L "https://choose-your-own-adventure-demo-a5anercqfqdpfggr.canadacentral-01.azurewebsites.net/api/twilioHandler?code=<redacted>" \
+func azure functionapp list-functions choose-your-own-adventure-demo-flex --show-keys
+```
+
+Note, in the URL below, replace `<redacted>` with actual value from Invoke URL
+
+```bash
+curl -L "https://choose-your-own-adventure-demo-flex.azurewebsites.net/api/twilioHandler?code=<redacted>" \
   -H "Content-Type: application/json" \
   --data '{"name": "World"}'
 ```
