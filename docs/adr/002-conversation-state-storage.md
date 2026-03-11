@@ -2,13 +2,13 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
-The court reminder system uses a choose-your-own-adventure SMS flow where each user progresses through a conversation tree. We need to persist per-user conversation state (current step, selected options, court date info) between incoming messages so responses are context-aware.
+The court reminder system uses a choose-your-own-adventure SMS flow where each user progresses through a conversation tree. We need to persist per-user conversation state (current scenario, current step, court date/timestamp) between incoming messages so responses are context-aware.
 
-Azure Functions are stateless by default — each invocation has no memory of previous calls. We need a storage layer that:
+Azure Functions are stateless by default - each invocation has no memory of previous calls. We need a storage layer that:
 
 - Persists state across function invocations
 - Supports lookup by phone number (the natural key for SMS conversations)
@@ -22,18 +22,25 @@ Azure Functions are stateless by default — each invocation has no memory of pr
 | **Azure Table Storage** | Serverless, cheap (free tier covers our scale), native Azure SDK, key-value fits our access pattern | No relational queries, limited indexing |
 | **Azure Cosmos DB** | Globally distributed, flexible querying | Overkill for our scale, more expensive, complex pricing model |
 | **SQLite on Azure Files** | Familiar SQL interface, zero cost | Concurrent write contention with Functions, operational burden to manage the file mount |
-| **In-memory (dict)** | Zero setup | State lost on every cold start — unusable for real conversations |
+| **In-memory (dict)** | Zero setup | State lost on every cold start - unusable for real conversations |
 
 ## Decision
 
-*To be decided by the team.*
+Use **Azure Table Storage** with the following schema:
 
-<!-- Recommended: Azure Table Storage. It's the simplest option that meets all requirements, costs effectively nothing at our scale, and pairs naturally with Azure Functions (same storage account). Phone number as PartitionKey gives us fast lookups. -->
+- **Table name:** `conversationstate`
+- **PartitionKey:** phone number (e.g. `+14045551234`)
+- **RowKey:** fixed string `"state"` (one row per user, overwritten on each transition)
+- **Columns:**
+  - `scenario` (str) - current scenario: `"home"`, `"scenario_1"`, `"scenario_2"`
+  - `step` (str) - current step within the scenario (e.g. `"welcome"`, `"countdown_7min"`, `"missed"`)
+  - `court_datetime` (str, ISO 8601, nullable) - simulated court date used for countdown messages
+
+The single-row-per-user pattern (RowKey="state", overwrite on transition) is chosen because our only access pattern is "look up current state by phone number." We never need to query across users or replay history at this stage.
+
+For local development, Azure Table Storage is emulated via [Azurite](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azurite) (same Docker container already used for blob storage, port 10002).
 
 ## Consequences
 
-*To be filled in after the decision is made.*
-
-<!-- If Azure Table Storage:
-- **Easier:** No additional infrastructure to provision — reuses the storage account Azure Functions already requires. Simple key-value API maps cleanly to "look up state by phone number."
-- **Harder:** No relational queries — if we later need to query across users (e.g., "all users with a court date tomorrow"), we'll need a secondary index or a different approach for that use case. -->
+- **Easier:** No additional infrastructure to provision - reuses the storage account Azure Functions already requires. Simple key-value API maps cleanly to "look up state by phone number." Azurite emulates Table Storage locally on the same port already in use.
+- **Harder:** No relational queries - if we later need to query across users (e.g. "all users with a court date tomorrow"), we'll need a secondary index or a different storage layer for that use case. Full conversation history is not retained; if audit logging becomes a requirement, a separate append-only table should be added.
