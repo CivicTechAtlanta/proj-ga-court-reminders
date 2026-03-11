@@ -30,13 +30,22 @@ Use **Azure Table Storage** with the following schema:
 
 - **Table name:** `conversationstate`
 - **PartitionKey:** phone number (e.g. `+14045551234`)
-- **RowKey:** fixed string `"state"` (one row per user, overwritten on each transition)
+- **RowKey:** fixed string `"current"` (one row per user, overwritten on each transition)
 - **Columns:**
   - `scenario` (str) - current scenario: `"home"`, `"scenario_1"`, `"scenario_2"`
   - `step` (str) - current step within the scenario (e.g. `"welcome"`, `"countdown_7min"`, `"missed"`)
   - `court_datetime` (str, ISO 8601, nullable) - simulated court date used for countdown messages
 
-The single-row-per-user pattern (RowKey="state", overwrite on transition) is chosen because our only access pattern is "look up current state by phone number." We never need to query across users or replay history at this stage.
+Example data:
+
+PartitionKey | RowKey  | scenario   | step           | court_datetime
+------------ | ------- | ---------- | -------------- | --------------------
++14045551234 | current | scenario_1 | countdown_7min | 2026-03-11T14:30:00Z
++14045550000 | current | home       | welcome        | null
+
+Note on RowKey = "current":
+- The single-row-per-user pattern (RowKey="current", overwrite on transition) is chosen because our only access pattern is "look up current state by phone number." We never need to query across users or replay history at this stage.
+- Including this as a placeholder in case we decide in the future to build in audit logging on the Azure side (rather than Twilio).  In this case, we would set the RowKey to be a timestamp
 
 For local development, Azure Table Storage is emulated via [Azurite](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azurite) (same Docker container already used for blob storage, port 10002).
 
