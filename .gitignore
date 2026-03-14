@@ -29,3 +29,7 @@ __azurite_db*__.json
 
 # Generated deployment artifact
 requirements.txt
+
+# Generated conversation simulation output
+conv_simulation.txt
+conv_simulation.html
