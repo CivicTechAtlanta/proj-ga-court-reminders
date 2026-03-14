@@ -23,8 +23,9 @@ integration = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "integration_twilio: Twilio SMS integration tests (require credentials)",
-    "integration_azure: Azure Functions integration tests (require running function host)",
+    "integration_local: integration tests that run with no external dependencies",
+    "integration_azure: integration tests that require a running Azure Functions host (make func-run)",
+    "integration_twilio: integration tests that require Twilio credentials (.env)",
 ]
 
 [tool.hatch.build.targets.wheel]
