@@ -38,7 +38,7 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
         message_body = body.get("Body", "")
         logging.info(f"SMS from {from_number}: {message_body}")
 
-        reply_text = "Hello! Thank you for subscribing to the Dekalb County Courtbot!"
+        reply_text = "Welcome to the Atlanta Municipal Court Reminder Demo. \n Which scenario do you want to play out?\n\n1. 7,3,1\n2. Missed\n"
         twiml = (
             '<?xml version="1.0" encoding="UTF-8"?>'
             "<Response>"
