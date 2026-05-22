@@ -27,7 +27,7 @@ An Azure Functions app that sends SMS court date reminders via Twilio.
    ```
 2. Trigger the function:
    ```bash
-   curl -X POST http://localhost:7071/api/twilioHandler -F From="123-456-7890" -F Body="Hello, World!"
+   curl -X POST http://localhost:7071/api/twilioHandler -F From="+11234567890" -F Body="Hello, World!"
    ```
 
 ## Running Tests
