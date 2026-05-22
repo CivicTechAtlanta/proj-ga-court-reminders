@@ -42,7 +42,7 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
 
         save_message(table, from_number, message_body)
 
-        queried = table.query_entities(query_filter="PartitionKey eq @number", select=["PartitionKey", "RowKey", "message"], parameters={"number": "123-456-7890"})
+        queried = table.query_entities(query_filter="PartitionKey eq @number", select=["PartitionKey", "RowKey", "message"], parameters={"number": from_number})
         for item in queried:
             print(item)
         
