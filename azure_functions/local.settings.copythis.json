@@ -2,7 +2,10 @@
   "IsEncrypted": false,
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_WORKER_RUNTIME": "python"
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "TWILIO_ACCOUNT_SID": "<find in console.twilio.com>",
+    "TWILIO_AUTH_TOKEN": "<find in console.twilio.com>",
+    "TWILIO_PHONE_NUMBER": "<find in console.twilio.com>"
   },
   "Host": {
     "LocalHttpPort": 7071

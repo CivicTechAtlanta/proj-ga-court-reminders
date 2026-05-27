@@ -5,10 +5,11 @@ An Azure Functions app that sends SMS court date reminders via Twilio.
 ## Local Development
 
 1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
-2. Install dependencies & Create local.settings.json (For details, se "setup" in repo top-level [`Makefile`](./Makefile)):
+2. Install dependencies & Create local.settings.json (For details, see "setup" in repo top-level [`Makefile`](./Makefile)):
    ```bash
    make setup
    ```
+   You can find the twilio env parameters to use in the Twilio console.
 3. Install Azure Functions Core Tools:
    ```bash
    npm i -g azure-functions-core-tools@4
