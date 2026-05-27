@@ -37,10 +37,15 @@ def run(req: func.HttpRequest) -> func.HttpResponse:
     phone_number = os.environ["TWILIO_PHONE_NUMBER"]
     to_phone_number = os.environ["TO_PHONE_NUMBER"]
     
-    client = Client(account_sid, auth_token) 
-    client.messages.create(body="Your court appointment will occur in 7 days.", from_=phone_number, to=to_phone_number)
+    try:
+        client = Client(account_sid, auth_token) 
+        client.messages.create(body="Your court appointment will occur in 7 days.", from_=phone_number, to=to_phone_number)
+        return func.HttpResponse('done', status_code=200, mimetype="application/text")
+    except Exception as e:
+        logging.error(f"Function failed: {e}")
+        logging.error(traceback.format_exc())
+        return func.HttpResponse("Internal error", status_code=500)
 
-    return func.HttpResponse('done', status_code=200, mimetype="application/text")
 
 @app.route(route="twilioHandler")
 def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
