@@ -30,8 +30,11 @@ def save_message(table, phone_number, message_body):
     
     table.upsert_entity(entity=entity)
 
-@app.route(route="run")
-def run(req: func.HttpRequest) -> func.HttpResponse:
+@app.function_name(name="twilioSender")
+@app.timer_trigger(schedule="0 */1 * * * *", 
+              arg_name="timer",
+              run_on_startup=False)
+def twilioSender(timer: func.TimerRequest) -> None:
     account_sid = os.environ["TWILIO_ACCOUNT_SID"]
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
     phone_number = os.environ["TWILIO_PHONE_NUMBER"]
@@ -40,11 +43,9 @@ def run(req: func.HttpRequest) -> func.HttpResponse:
     try:
         client = Client(account_sid, auth_token) 
         client.messages.create(body="Your court appointment will occur in 7 days.", from_=phone_number, to=to_phone_number)
-        return func.HttpResponse('done', status_code=200, mimetype="application/text")
     except Exception as e:
         logging.error(f"Function failed: {e}")
         logging.error(traceback.format_exc())
-        return func.HttpResponse("Internal error", status_code=500)
 
 
 @app.route(route="twilioHandler")
