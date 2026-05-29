@@ -39,6 +39,10 @@ def twilioSender(timer: func.TimerRequest) -> None:
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
     phone_number = os.environ["TWILIO_PHONE_NUMBER"]
     to_phone_number = os.environ["TO_PHONE_NUMBER"]
+
+    if account_sid is None or auth_token is None or not account_sid or not auth_token:
+        logging.warn("missing account sid or auth token")
+        return
     
     try:
         client = Client(account_sid, auth_token) 
