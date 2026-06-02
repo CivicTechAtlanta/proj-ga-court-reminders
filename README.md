@@ -17,7 +17,7 @@ An Azure Functions app that sends SMS court date reminders via Twilio.
    Alternatively, follow the [official instructions](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local?tabs=macos%2Cisolated-process%2Cnode-v4%2Cpython-v2%2Chttp-trigger%2Ccontainer-apps&pivots=programming-language-python#install-the-azure-functions-core-tools).
 4. Start Azurite storage emulator:
    ```bash
-   docker run -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite
+   docker run -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobPort 10000 --blobHost 0.0.0.0 --queuePort 10001 --queueHost 0.0.0.0 --tablePort 10002 --tableHost 0.0.0.0 --loose --skipApiVersionCheck
    ```
 
 ## Running Locally
@@ -28,12 +28,9 @@ An Azure Functions app that sends SMS court date reminders via Twilio.
 ```
 2. Trigger the incoming message function:
 ```bash
-curl -X POST http://localhost:7071/api/twilioHandler -F From="+11234567890" -F Body="Hello, World!"
+curl -X POST http://localhost:7071/api/twilioHandler -F From="<enter a real number area code first>" -F Body="Hello, World!"
    ```
-3. Trigger the outgoing messagae function
-```bash
-curl -H "Content-Type: application/json" http://localhost:7071/admin/functions/twilioSender -d '{"input":""}'
-```
+
 
 ## Running Tests
 
