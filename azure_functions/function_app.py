@@ -32,7 +32,7 @@ def get_queue_client():
         pass 
 
     client.message_encode_policy = BinaryBase64EncodePolicy()
-    client.message_decode_policy = BinaryBase64DecodePolicy()
+    #client.message_decode_policy = BinaryBase64DecodePolicy()
     return client
 
 def save_message(table, phone_number, message_body):
