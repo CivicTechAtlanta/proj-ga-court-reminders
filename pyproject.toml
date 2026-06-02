@@ -9,6 +9,7 @@ requires-python = ">=3.13"
 dependencies = [
     "azure-data-tables>=12.7.0",
     "azure-functions>=1.24.0,<1.25",
+    "azure-storage-queue>=12.16.0",
     "twilio>=9.10.1,<9.11",
 ]
 
