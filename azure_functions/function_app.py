@@ -1,21 +1,26 @@
-import azure.functions as func
 import logging
 import traceback
 import os
-from azure.data.tables import TableServiceClient
 import time
 import json
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
-from azure.storage.queue import (QueueClient, BinaryBase64EncodePolicy, BinaryBase64DecodePolicy)
+import azure.functions as func
+from azure.data.tables import TableServiceClient
+from azure.storage.queue import (
+    QueueClient,
+    BinaryBase64EncodePolicy,
+    BinaryBase64DecodePolicy,
+)
 from azure.core.exceptions import ResourceExistsError
 
 from court_reminder import __version__
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
-TABLE_NAME="inboundmessages"
-QUEUE_NAME="outboundmessages"
+TABLE_NAME = "inboundmessages"
+QUEUE_NAME = "outboundmessages"
+
 
 def get_table_client():
     conn_str = os.environ["AzureWebJobsStorage"]
@@ -23,31 +28,34 @@ def get_table_client():
 
     return service.create_table_if_not_exists(TABLE_NAME)
 
+
 def get_queue_client():
     conn_str = os.environ["AzureWebJobsStorage"]
-    client = QueueClient.from_connection_string(conn_str=conn_str, queue_name=QUEUE_NAME) 
+    client = QueueClient.from_connection_string(
+        conn_str=conn_str,
+        queue_name=QUEUE_NAME,
+        message_encode_policy=BinaryBase64EncodePolicy(),
+        message_decode_policy=BinaryBase64DecodePolicy(),
+    )
     try:
         client.create_queue()
     except ResourceExistsError:
-        pass 
+        pass
 
-    client.message_encode_policy = BinaryBase64EncodePolicy()
-    #client.message_decode_policy = BinaryBase64DecodePolicy()
     return client
 
+
 def save_message(table, phone_number, message_body):
-    row_key = f'{time.time_ns():19}'
-    entity = {
-        "PartitionKey": phone_number,
-        "RowKey": row_key,
-        "message": message_body
-    }
-    
+    row_key = f"{time.time_ns():19}"
+    entity = {"PartitionKey": phone_number, "RowKey": row_key, "message": message_body}
+
     table.upsert_entity(entity=entity)
 
+
 @app.function_name(name="twilioSender")
-@app.queue_trigger(arg_name="queue_item", queue_name=QUEUE_NAME,
-                   connection="AzureWebJobsStorage")
+@app.queue_trigger(
+    arg_name="queue_item", queue_name=QUEUE_NAME, connection="AzureWebJobsStorage"
+)
 def twilioSender(queue_item: func.QueueMessage) -> None:
     account_sid = os.environ["TWILIO_ACCOUNT_SID"]
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
@@ -57,11 +65,13 @@ def twilioSender(queue_item: func.QueueMessage) -> None:
     if account_sid is None or auth_token is None or not account_sid or not auth_token:
         logging.warn("missing account sid or auth token")
         return
-    
+
     try:
-        client = Client(account_sid, auth_token) 
+        client = Client(account_sid, auth_token)
         item = queue_item.get_json()
-        client.messages.create(body=item['message'], from_=phone_number, to=item['to_number'])
+        client.messages.create(
+            body=item["message"], from_=phone_number, to=item["to_number"]
+        )
     except Exception as e:
         logging.error(f"Function failed: {e}")
         logging.error(traceback.format_exc())
@@ -78,17 +88,17 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
         message_body = body.get("Body", "")
         logging.info(f"SMS from {from_number}: {message_body}")
 
-
         save_message(table, from_number, message_body)
 
-
         reply_text = "Welcome to the Atlanta Municipal Court Reminder Demo. \n Which scenario do you want to play out?\n\n1. 7,3,1\n2. Missed\n"
-        json_str = json.dumps({'to_number': from_number, 'message': reply_text})
+        json_str = json.dumps({"to_number": from_number, "message": reply_text})
 
-        queue.send_message(queue.message_encode_policy.encode(content=json_str.encode('utf-8')))
-        #queue.send_message(json.dumps({'to_number': from_number, 'message': reply_text}), visibility_timeout=<7 minutes in seconds>)
+        queue.send_message(json_str.encode('utf-8'))
+        # queue.send_message(json.dumps({'to_number': from_number, 'message': reply_text}), visibility_timeout=<7 minutes in seconds>)
 
-        return func.HttpResponse(str(MessagingResponse()), status_code=200, mimetype="application/xml")
+        return func.HttpResponse(
+            str(MessagingResponse()), status_code=200, mimetype="application/xml"
+        )
 
     except Exception as e:
         logging.error(f"Function failed: {e}")
