@@ -57,19 +57,19 @@ def save_message(table, phone_number, message_body):
     arg_name="queue_item", queue_name=QUEUE_NAME, connection="AzureWebJobsStorage"
 )
 def twilioSender(queue_item: func.QueueMessage) -> None:
+    print(f"received queue item {queue_item}")
+
     account_sid = os.environ["TWILIO_ACCOUNT_SID"]
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
     phone_number = os.environ["TWILIO_PHONE_NUMBER"]
-    to_phone_number = os.environ["TO_PHONE_NUMBER"]
 
     if account_sid is None or auth_token is None or not account_sid or not auth_token:
-        logging.warn("missing account sid or auth token")
+        print("missing account sid or auth token")
         return
 
     try:
         client = Client(account_sid, auth_token)
         print(f"received queue item {queue_item}")
-        print(f"queue item body {queue_item.content}")
         #print(f"extract body: {queue_item.get_body().decode('utf-8')}")
         #item = queue_item.get_json()
         #client.messages.create(
