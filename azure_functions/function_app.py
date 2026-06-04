@@ -57,8 +57,6 @@ def save_message(table, phone_number, message_body):
     arg_name="queue_item", queue_name=QUEUE_NAME, connection="AzureWebJobsStorage"
 )
 def twilioSender(queue_item: func.QueueMessage) -> None:
-    print(f"received queue item {queue_item}")
-
     account_sid = os.environ["TWILIO_ACCOUNT_SID"]
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
     phone_number = os.environ["TWILIO_PHONE_NUMBER"]
@@ -70,8 +68,8 @@ def twilioSender(queue_item: func.QueueMessage) -> None:
     try:
         client = Client(account_sid, auth_token)
         print(f"received queue item {queue_item}")
-        #print(f"extract body: {queue_item.get_body().decode('utf-8')}")
-        #item = queue_item.get_json()
+        item = queue_item.get_json()
+        print(f"parsed queue item: {item}")
         #client.messages.create(
         #    body=item["message"], from_=phone_number, to=item["to_number"]
         #)
