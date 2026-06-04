@@ -61,17 +61,6 @@ def twilioSender(queue_item: func.QueueMessage) -> None:
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
     phone_number = os.environ["TWILIO_PHONE_NUMBER"]
 
-    if (
-        account_sid is None
-        or auth_token is None
-        or phone_number is None
-        or not account_sid
-        or not auth_token
-        or not phone_number
-    ):
-        print("missing account sid or auth token")
-        return
-
     try:
         client = Client(account_sid, auth_token)
         item = queue_item.get_json()
