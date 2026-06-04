@@ -35,6 +35,7 @@ def get_queue_client():
         conn_str=conn_str,
         queue_name=QUEUE_NAME,
         message_encode_policy=BinaryBase64EncodePolicy(),
+        messade_decode_policy=BinaryBase64DecodePolicy(),
     )
     try:
         client.create_queue()
@@ -68,7 +69,8 @@ def twilioSender(queue_item: func.QueueMessage) -> None:
     try:
         client = Client(account_sid, auth_token)
         print(f"received queue item {queue_item}")
-        print(f"extract body: {queue_item.get_body().decode('utf-8')}")
+        print(f"queue item body {queue_item.content}")
+        #print(f"extract body: {queue_item.get_body().decode('utf-8')}")
         #item = queue_item.get_json()
         #client.messages.create(
         #    body=item["message"], from_=phone_number, to=item["to_number"]
