@@ -67,12 +67,10 @@ def twilioSender(queue_item: func.QueueMessage) -> None:
 
     try:
         client = Client(account_sid, auth_token)
-        print(f"received queue item {queue_item}")
         item = queue_item.get_json()
-        print(f"parsed queue item: {item}")
-        #client.messages.create(
-        #    body=item["message"], from_=phone_number, to=item["to_number"]
-        #)
+        client.messages.create(
+            body=item["message"], from_=phone_number, to=item["to_number"]
+        )
     except Exception as e:
         logging.error(f"Function failed: {e}")
         logging.error(traceback.format_exc())
