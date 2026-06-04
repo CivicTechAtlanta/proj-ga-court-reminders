@@ -35,7 +35,6 @@ def get_queue_client():
         conn_str=conn_str,
         queue_name=QUEUE_NAME,
         message_encode_policy=BinaryBase64EncodePolicy(),
-        message_decode_policy=BinaryBase64DecodePolicy(),
     )
     try:
         client.create_queue()
