@@ -61,7 +61,14 @@ def twilioSender(queue_item: func.QueueMessage) -> None:
     auth_token = os.environ["TWILIO_AUTH_TOKEN"]
     phone_number = os.environ["TWILIO_PHONE_NUMBER"]
 
-    if account_sid is None or auth_token is None or not account_sid or not auth_token:
+    if (
+        account_sid is None
+        or auth_token is None
+        or phone_number is None
+        or not account_sid
+        or not auth_token
+        or not phone_number
+    ):
         print("missing account sid or auth token")
         return
 
@@ -92,7 +99,7 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
         reply_text = "Welcome to the Atlanta Municipal Court Reminder Demo. \n Which scenario do you want to play out?\n\n1. 7,3,1\n2. Missed\n"
         json_str = json.dumps({"to_number": from_number, "message": reply_text})
 
-        queue.send_message(json_str.encode('utf-8'))
+        queue.send_message(json_str.encode("utf-8"))
         # queue.send_message(json.dumps({'to_number': from_number, 'message': reply_text}), visibility_timeout=<7 minutes in seconds>)
 
         return func.HttpResponse(
