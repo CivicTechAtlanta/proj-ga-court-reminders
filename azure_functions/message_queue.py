@@ -10,6 +10,7 @@ from azure.core.exceptions import ResourceExistsError
 
 QUEUE_NAME = "outboundmessages"
 
+
 def get_queue_client():
     conn_str = os.environ["AzureWebJobsStorage"]
     client = QueueClient.from_connection_string(
@@ -24,6 +25,7 @@ def get_queue_client():
         pass
 
     return client
+
 
 def toQueueMessage(to_number, message):
     return json.dumps({"to_number": to_number, "message": message}).encode("utf-8")

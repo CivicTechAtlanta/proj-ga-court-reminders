@@ -16,6 +16,7 @@ from message_queue import get_queue_client, toQueueMessage, QUEUE_NAME
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
+
 @app.function_name(name="twilioSender")
 @app.queue_trigger(
     arg_name="queue_item", queue_name=QUEUE_NAME, connection="AzureWebJobsStorage"
@@ -52,48 +53,59 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
 
         if current_state["CurrentState"] == "initial":
             reply_text = "Welcome to the Atlanta Municipal Court Reminder Demo. \n Which scenario do you want to play out?\n\n1. 7,3,1\n2. Missed\n"
-            json_str = json.dumps({"to_number": from_number, "message": reply_text})
-            queue.send_message(json_str.encode("utf-8"))
+            queue.send_message(toQueueMessage(from_number, reply_text))
             update_state(from_number, "menu_sent")
         elif current_state["CurrentState"] == "menu_sent":
             if len(message_body) > 0 and message_body[0] == "1":
+                current_time = time.time()
+                fake_court_date = time.ctime(current_time + (60 * 12))
                 queue.send_message(
                     toQueueMessage(
                         from_number,
-                        "Welcome. Your fake court date is 12 minutes from now. We'll text you 7 min, 3 min, and 1 min before your fake court date. \n\n Text EXIT to end the demo.",
+                        "Welcome. Your fake court date is 12 minutes from now on {}. We'll text you 7 min, 3 min, and 1 min before your fake court date. \n\n Text EXIT to end the demo.".format(
+                            fake_court_date
+                        ),
                     )
                 )
 
                 enqueued_one = queue.send_message(
                     toQueueMessage(
                         from_number,
-                        "Your fake court date is 7 minutes from now. \n\n Text EXIT to end the demo.",
+                        "Your fake court date is 7 minutes from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(fake_court_date),
                     ),
                     visibility_timeout=7 * 60,
                 )
                 enqueued_two = queue.send_message(
                     toQueueMessage(
                         from_number,
-                        "Your fake court date is 3 minutes from now. \n\n Text EXIT to end the demo.",
+                        "Your fake court date is 3 minutes from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(fake_court_date),
                     ),
                     visibility_timeout=(7 + 3) * 60,
                 )
                 enqueued_three = queue.send_message(
                     toQueueMessage(
                         from_number,
-                        "Your fake court date is 1 minute from now. \n\n Text EXIT to end the demo.",
+                        "Your fake court date is 1 minute from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(fake_court_date),
                     ),
                     visibility_timeout=(7 + 3 + 1) * 60,
                 )
 
-                messages_queued = json.dumps([
-                        {"id": enqueued_one.id, "pop_receipt": enqueued_one.pop_receipt},
-                        {"id": enqueued_two.id, "pop_receipt": enqueued_two.pop_receipt},
+                messages_queued = json.dumps(
+                    [
+                        {
+                            "id": enqueued_one.id,
+                            "pop_receipt": enqueued_one.pop_receipt,
+                        },
+                        {
+                            "id": enqueued_two.id,
+                            "pop_receipt": enqueued_two.pop_receipt,
+                        },
                         {
                             "id": enqueued_three.id,
                             "pop_receipt": enqueued_three.pop_receipt,
                         },
-                    ])
+                    ]
+                )
 
                 update_state(
                     from_number,

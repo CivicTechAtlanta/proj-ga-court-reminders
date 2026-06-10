@@ -11,13 +11,16 @@ from azure.data.tables import TableServiceClient
 MESSAGES_TABLE_NAME = "inboundmessages"
 STATE_TABLE_NAME = "demostate"
 
+
 def get_state_table_client():
     conn_str = os.environ["AzureWebJobsStorage"]
     service = TableServiceClient.from_connection_string(conn_str)
 
     return service.create_table_if_not_exists(STATE_TABLE_NAME)
 
+
 table = get_state_table_client()
+
 
 def update_state(phone_number, new_state, queued_messages=None) -> None:
     if queued_messages is None:
@@ -43,7 +46,6 @@ def get_state(phone_number):
 
     for state_item in items:
         return state_item
-    
+
     update_state(phone_number, "initial")
     return get_state(phone_number)
-    
