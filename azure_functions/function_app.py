@@ -52,7 +52,7 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
         if "EXIT" in message_body:
             handle_exit(queue, from_number, current_state)
         elif current_state["CurrentState"] == "initial":
-            reply_text = "Welcome to the Atlanta Municipal Court Reminder Demo. \n Which scenario do you want to play out?\n\n1. 7,3,1\n2. Missed\n"
+            reply_text = "Welcome to the Civic Tech Atlanta Court Reminder Demo. \n Which scenario do you want to play out?\n\n1. 7,3,1\n2. Missed\n"
             queue.send_message(toQueueMessage(from_number, reply_text))
             update_state(from_number, "menu_sent")
         elif current_state["CurrentState"] == "menu_sent":
