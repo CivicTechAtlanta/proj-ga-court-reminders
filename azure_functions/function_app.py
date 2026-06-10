@@ -49,9 +49,9 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
         logging.info(f"SMS from {from_number}: {message_body}")
 
         current_state = get_state(from_number)
-        # handle EXIT message, delete enqueued messages attached to state, reset state to initial, send demo stopped message, return
-
-        if current_state["CurrentState"] == "initial":
+        if "EXIT" in message_body:
+            handle_exit(queue, from_number, current_state)
+        elif current_state["CurrentState"] == "initial":
             reply_text = "Welcome to the Atlanta Municipal Court Reminder Demo. \n Which scenario do you want to play out?\n\n1. 7,3,1\n2. Missed\n"
             queue.send_message(toQueueMessage(from_number, reply_text))
             update_state(from_number, "menu_sent")
@@ -210,3 +210,19 @@ def run_scenario_2(queue, from_number):
         "initial",
         queued_messages=messages_queued,
     )
+
+
+def handle_exit(queue, to_number, current_state):
+    queue.send_message(
+        toQueueMessage(
+            to_number,
+            "Demo exited.",
+        )
+    )
+
+    message_refs = json.loads(current_state["QueuedMessages"])
+    for ref in message_refs:
+        print("deleting queue message: {}".format(ref["id"]))
+        queue.delete_message(ref["id"], pop_receipt=ref["pop_receipt"])
+    
+    update_state(to_number, "initial")
