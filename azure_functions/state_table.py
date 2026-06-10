@@ -8,7 +8,6 @@ from twilio.twiml.messaging_response import MessagingResponse
 import azure.functions as func
 from azure.data.tables import TableServiceClient
 
-MESSAGES_TABLE_NAME = "inboundmessages"
 STATE_TABLE_NAME = "demostate"
 
 
