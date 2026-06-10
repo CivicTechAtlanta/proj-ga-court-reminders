@@ -58,11 +58,11 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
         elif current_state["CurrentState"] == "menu_sent":
             if len(message_body) > 0 and message_body[0] == "1":
                 current_time = time.time()
-                fake_court_date = time.ctime(current_time + (60 * 12))
+                fake_court_date = time.ctime(current_time + (60 * 10))
                 queue.send_message(
                     toQueueMessage(
                         from_number,
-                        "Welcome. Your fake court date is 12 minutes from now on {}. We'll text you 7 min, 3 min, and 1 min before your fake court date. \n\n Text EXIT to end the demo.".format(
+                        "Welcome. Your fake court date is 10 minutes from now on {}. We'll text you 7 min, 3 min, and 1 min before your fake court date. \n\n Text EXIT to end the demo.".format(
                             fake_court_date
                         ),
                     )
@@ -73,21 +73,21 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
                         from_number,
                         "Your fake court date is 7 minutes from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(fake_court_date),
                     ),
-                    visibility_timeout=7 * 60,
+                    visibility_timeout=3 * 60,
                 )
                 enqueued_two = queue.send_message(
                     toQueueMessage(
                         from_number,
                         "Your fake court date is 3 minutes from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(fake_court_date),
                     ),
-                    visibility_timeout=(7 + 3) * 60,
+                    visibility_timeout= 7 * 60,
                 )
                 enqueued_three = queue.send_message(
                     toQueueMessage(
                         from_number,
                         "Your fake court date is 1 minute from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(fake_court_date),
                     ),
-                    visibility_timeout=(7 + 3 + 1) * 60,
+                    visibility_timeout=9 * 60,
                 )
 
                 messages_queued = json.dumps(
