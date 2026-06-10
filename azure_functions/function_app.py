@@ -6,51 +6,15 @@ import json
 from twilio.rest import Client
 from twilio.twiml.messaging_response import MessagingResponse
 import azure.functions as func
-from azure.data.tables import TableServiceClient
-from azure.storage.queue import (
-    QueueClient,
-    BinaryBase64EncodePolicy,
-    BinaryBase64DecodePolicy,
-)
-from azure.core.exceptions import ResourceExistsError
+
 
 from court_reminder import __version__
 
+from state_table import get_state, update_state
+from messages_log import save_message
+from message_queue import get_queue_client, toQueueMessage, QUEUE_NAME
+
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
-
-TABLE_NAME = "inboundmessages"
-QUEUE_NAME = "outboundmessages"
-
-
-def get_table_client():
-    conn_str = os.environ["AzureWebJobsStorage"]
-    service = TableServiceClient.from_connection_string(conn_str)
-
-    return service.create_table_if_not_exists(TABLE_NAME)
-
-
-def get_queue_client():
-    conn_str = os.environ["AzureWebJobsStorage"]
-    client = QueueClient.from_connection_string(
-        conn_str=conn_str,
-        queue_name=QUEUE_NAME,
-        message_encode_policy=BinaryBase64EncodePolicy(),
-        messade_decode_policy=BinaryBase64DecodePolicy(),
-    )
-    try:
-        client.create_queue()
-    except ResourceExistsError:
-        pass
-
-    return client
-
-
-def save_message(table, phone_number, message_body):
-    row_key = f"{time.time_ns():19}"
-    entity = {"PartitionKey": phone_number, "RowKey": row_key, "message": message_body}
-
-    table.upsert_entity(entity=entity)
-
 
 @app.function_name(name="twilioSender")
 @app.queue_trigger(
@@ -75,21 +39,82 @@ def twilioSender(queue_item: func.QueueMessage) -> None:
 @app.route(route="twilioHandler")
 def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
     try:
-        table = get_table_client()
         queue = get_queue_client()
 
         body = dict(req.form)
         from_number = body.get("From", "unknown")
         message_body = body.get("Body", "")
+        save_message(from_number, message_body)
         logging.info(f"SMS from {from_number}: {message_body}")
 
-        save_message(table, from_number, message_body)
+        current_state = get_state(from_number)
+        # handle EXIT message, delete enqueued messages attached to state, reset state to initial, send demo stopped message, return
 
-        reply_text = "Welcome to the Atlanta Municipal Court Reminder Demo. \n Which scenario do you want to play out?\n\n1. 7,3,1\n2. Missed\n"
-        json_str = json.dumps({"to_number": from_number, "message": reply_text})
+        if current_state["CurrentState"] == "initial":
+            reply_text = "Welcome to the Atlanta Municipal Court Reminder Demo. \n Which scenario do you want to play out?\n\n1. 7,3,1\n2. Missed\n"
+            json_str = json.dumps({"to_number": from_number, "message": reply_text})
+            queue.send_message(json_str.encode("utf-8"))
+            update_state(from_number, "menu_sent")
+        elif current_state["CurrentState"] == "menu_sent":
+            if len(message_body) > 0 and message_body[0] == "1":
+                queue.send_message(
+                    toQueueMessage(
+                        from_number,
+                        "Welcome. Your fake court date is 12 minutes from now. We'll text you 7 min, 3 min, and 1 min before your fake court date. \n\n Text EXIT to end the demo.",
+                    )
+                )
 
-        queue.send_message(json_str.encode("utf-8"))
-        # queue.send_message(json.dumps({'to_number': from_number, 'message': reply_text}), visibility_timeout=<7 minutes in seconds>)
+                enqueued_one = queue.send_message(
+                    toQueueMessage(
+                        from_number,
+                        "Your fake court date is 7 minutes from now. \n\n Text EXIT to end the demo.",
+                    ),
+                    visibility_timeout=7 * 60,
+                )
+                enqueued_two = queue.send_message(
+                    toQueueMessage(
+                        from_number,
+                        "Your fake court date is 3 minutes from now. \n\n Text EXIT to end the demo.",
+                    ),
+                    visibility_timeout=(7 + 3) * 60,
+                )
+                enqueued_three = queue.send_message(
+                    toQueueMessage(
+                        from_number,
+                        "Your fake court date is 1 minute from now. \n\n Text EXIT to end the demo.",
+                    ),
+                    visibility_timeout=(7 + 3 + 1) * 60,
+                )
+
+                messages_queued = json.dumps([
+                        {"id": enqueued_one.id, "pop_receipt": enqueued_one.pop_receipt},
+                        {"id": enqueued_two.id, "pop_receipt": enqueued_two.pop_receipt},
+                        {
+                            "id": enqueued_three.id,
+                            "pop_receipt": enqueued_three.pop_receipt,
+                        },
+                    ])
+
+                update_state(
+                    from_number,
+                    "initial",
+                    queued_messages=messages_queued,
+                )
+            elif len(message_body) > 0 and message_body[0] == "2":
+                queue.send_message(
+                    toQueueMessage(
+                        from_number,
+                        "You have selected option 2. Demo hasn't been implemented yet. Exiting.",
+                    )
+                )
+                update_state(phone_number, "initial")
+                # do other flow
+            else:
+                queue.send_message(
+                    toQueueMessage(
+                        from_number, "Unexpected input. Please reply with 1 or 2."
+                    )
+                )
 
         return func.HttpResponse(
             str(MessagingResponse()), status_code=200, mimetype="application/xml"
