@@ -57,70 +57,9 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
             update_state(from_number, "menu_sent")
         elif current_state["CurrentState"] == "menu_sent":
             if len(message_body) > 0 and message_body[0] == "1":
-                current_time = time.time()
-                fake_court_date = time.ctime(current_time + (60 * 10))
-                queue.send_message(
-                    toQueueMessage(
-                        from_number,
-                        "Welcome. Your fake court date is 10 minutes from now on {}. We'll text you 7 min, 3 min, and 1 min before your fake court date. \n\n Text EXIT to end the demo.".format(
-                            fake_court_date
-                        ),
-                    )
-                )
-
-                enqueued_one = queue.send_message(
-                    toQueueMessage(
-                        from_number,
-                        "Your fake court date is 7 minutes from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(fake_court_date),
-                    ),
-                    visibility_timeout=3 * 60,
-                )
-                enqueued_two = queue.send_message(
-                    toQueueMessage(
-                        from_number,
-                        "Your fake court date is 3 minutes from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(fake_court_date),
-                    ),
-                    visibility_timeout= 7 * 60,
-                )
-                enqueued_three = queue.send_message(
-                    toQueueMessage(
-                        from_number,
-                        "Your fake court date is 1 minute from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(fake_court_date),
-                    ),
-                    visibility_timeout=9 * 60,
-                )
-
-                messages_queued = json.dumps(
-                    [
-                        {
-                            "id": enqueued_one.id,
-                            "pop_receipt": enqueued_one.pop_receipt,
-                        },
-                        {
-                            "id": enqueued_two.id,
-                            "pop_receipt": enqueued_two.pop_receipt,
-                        },
-                        {
-                            "id": enqueued_three.id,
-                            "pop_receipt": enqueued_three.pop_receipt,
-                        },
-                    ]
-                )
-
-                update_state(
-                    from_number,
-                    "initial",
-                    queued_messages=messages_queued,
-                )
+                run_scenario_1(queue, from_number)
             elif len(message_body) > 0 and message_body[0] == "2":
-                queue.send_message(
-                    toQueueMessage(
-                        from_number,
-                        "You have selected option 2. Demo hasn't been implemented yet. Exiting.",
-                    )
-                )
-                update_state(phone_number, "initial")
-                # do other flow
+                run_scenario_2(queue, from_number)
             else:
                 queue.send_message(
                     toQueueMessage(
@@ -136,3 +75,138 @@ def twilioHandler(req: func.HttpRequest) -> func.HttpResponse:
         logging.error(f"Function failed: {e}")
         logging.error(traceback.format_exc())
         return func.HttpResponse("Internal error", status_code=500)
+
+
+def run_scenario_1(queue, from_number):
+    current_time = time.time()
+    fake_court_date = time.ctime(current_time + (60 * 10))
+    queue.send_message(
+        toQueueMessage(
+            from_number,
+            "Welcome. Your fake court date is 10 minutes from now on {}. We'll text you 7 min, 3 min, and 1 min before your fake court date. \n\n Text EXIT to end the demo.".format(
+                fake_court_date
+            ),
+        )
+    )
+
+    enqueued_one = queue.send_message(
+        toQueueMessage(
+            from_number,
+            "Your fake court date is 7 minutes from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(
+                fake_court_date
+            ),
+        ),
+        visibility_timeout=3 * 60,
+    )
+    enqueued_two = queue.send_message(
+        toQueueMessage(
+            from_number,
+            "Your fake court date is 3 minutes from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(
+                fake_court_date
+            ),
+        ),
+        visibility_timeout=7 * 60,
+    )
+    enqueued_three = queue.send_message(
+        toQueueMessage(
+            from_number,
+            "Your fake court date is 1 minute from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(
+                fake_court_date
+            ),
+        ),
+        visibility_timeout=9 * 60,
+    )
+
+    messages_queued = json.dumps(
+        [
+            {
+                "id": enqueued_one.id,
+                "pop_receipt": enqueued_one.pop_receipt,
+            },
+            {
+                "id": enqueued_two.id,
+                "pop_receipt": enqueued_two.pop_receipt,
+            },
+            {
+                "id": enqueued_three.id,
+                "pop_receipt": enqueued_three.pop_receipt,
+            },
+        ]
+    )
+
+    update_state(
+        from_number,
+        "initial",
+        queued_messages=messages_queued,
+    )
+
+
+def run_scenario_2(queue, from_number):
+    current_time = time.time()
+    fake_court_date = time.ctime(current_time + (60 * 10))
+    queue.send_message(
+        toQueueMessage(
+            from_number,
+            "Welcome. Your fake court date is 10 minutes from now on {}. We'll text you 7 min, 3 min, and 1 min before your fake court date and 1 minute after the missed fake court date. \n\n Text EXIT to end the demo.".format(
+                fake_court_date
+            ),
+        )
+    )
+
+    enqueued_one = queue.send_message(
+        toQueueMessage(
+            from_number,
+            "Your fake court date is 7 minutes from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(
+                fake_court_date
+            ),
+        ),
+        visibility_timeout=3 * 60,
+    )
+    enqueued_two = queue.send_message(
+        toQueueMessage(
+            from_number,
+            "Your fake court date is 3 minutes from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(
+                fake_court_date
+            ),
+        ),
+        visibility_timeout=7 * 60,
+    )
+    enqueued_three = queue.send_message(
+        toQueueMessage(
+            from_number,
+            "Your fake court date is 1 minute from now. \nDetails: \n1234 Main St, Atlanta, GA\nCourt Room ABC\n{} \n\n Text EXIT to end the demo.".format(
+                fake_court_date
+            ),
+        ),
+        visibility_timeout=9 * 60,
+    )
+    enqueued_four = queue.send_message(
+        toQueueMessage(
+            from_number,
+            "We noticed you missed your court date. You'll need to reschedule. \n\n Text EXIT to end the demo.",
+        ),
+        visibility_timeout=11 * 60,
+    )
+    messages_queued = json.dumps(
+        [
+            {
+                "id": enqueued_one.id,
+                "pop_receipt": enqueued_one.pop_receipt,
+            },
+            {
+                "id": enqueued_two.id,
+                "pop_receipt": enqueued_two.pop_receipt,
+            },
+            {
+                "id": enqueued_three.id,
+                "pop_receipt": enqueued_three.pop_receipt,
+            },
+            {"id": enqueued_four.id, "pop_receipt": enqueued_four.pop_receipt},
+        ]
+    )
+
+    update_state(
+        from_number,
+        "initial",
+        queued_messages=messages_queued,
+    )
