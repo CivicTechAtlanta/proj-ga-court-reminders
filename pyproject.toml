@@ -7,9 +7,11 @@ name = "court-reminder"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "aws-cdk-lib>=2.263.0",
     "azure-data-tables>=12.7.0",
     "azure-functions>=1.24.0,<1.25",
     "azure-storage-queue>=12.16.0",
+    "constructs>=10.8.1",
     "twilio>=9.10.1,<9.11",
 ]
 

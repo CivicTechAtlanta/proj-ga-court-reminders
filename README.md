@@ -1,99 +1,27 @@
 # GA Court Reminders
 
-An Azure Functions app that sends SMS court date reminders via Twilio.
+Lambda functions that send SMS court date reminders.
+
+## Setting up AWS and CDK
+1. Install [aws cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+2. Install aws cdk cli using npm (`npm install -g aws-cdk`)
+3. Make sure you're logged in to AWS. Configure login with aws cli (`aws login`). 
+
 
 ## Local Development
-
 1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
-2. Install dependencies & Create local.settings.json (For details, see "setup" in repo top-level [`Makefile`](./Makefile)):
+2. Install dependencies (For details, see "setup" in repo top-level [`Makefile`](./Makefile)):
    ```bash
    make setup
    ```
-   You can find the twilio env parameters to use in the Twilio console.
-3. Install Azure Functions Core Tools:
-   ```bash
-   npm i -g azure-functions-core-tools@4
-   ```
-   Alternatively, follow the [official instructions](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local?tabs=macos%2Cisolated-process%2Cnode-v4%2Cpython-v2%2Chttp-trigger%2Ccontainer-apps&pivots=programming-language-python#install-the-azure-functions-core-tools).
-4. Start Azurite storage emulator:
-   ```bash
-   docker run -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite azurite --blobPort 10000 --blobHost 0.0.0.0 --queuePort 10001 --queueHost 0.0.0.0 --tablePort 10002 --tableHost 0.0.0.0 --loose --skipApiVersionCheck
-   ```
+3. After CDK changes, run `cdk deploy`. If actively developing, run `cdk watch` in a different terminal
+
 
 ## Running Locally
-
-1. Start the Azure Function:
-```bash
-   make run
-```
-2. Trigger the incoming message function:
-```bash
-curl -X POST http://localhost:7071/api/twilioHandler -F From="<enter a real number area code first>" -F Body="Hello, World!"
-   ```
+not yet sorted
 
 ## Adding a new dependency
 ```bash
 uv add <dependency name>
 ```
 
-
-## Running Tests
-
-Unit tests (no credentials needed):
-```bash
-make test
-```
-
-### Integration Tests
-
-Integration tests hit real external services and require credentials.
-
-| Command | What it does |
-|---|---|
-| `make test` | Unit tests only (default) |
-| `make test-twilio` | Twilio SMS integration tests |
-| `make test-azure` | Azure Functions integration tests |
-| `make test-integration` | All integration tests |
-| `make test-all` | Unit + integration tests |
-
-**Twilio SMS setup** — sends actual SMS messages to a test number:
-1. Copy `.template.env` to `.env` and fill in your Twilio credentials
-2. Run `make test-twilio`
-
-## Deployment via GitHub Actions
-
-Set the repo Actions secret: `AZURE_FUNCTIONAPP_PUBLISH_PROFILE` (found in Azure portal > Function App > "Get Publish Profile")
-
-Note, this is likely already set in [Repo > Settings > Secrets and Variables > Actions](https://github.com/CivicTechAtlanta/proj-ga-court-reminders/settings/secrets/actions).  Including this section so we explicitly call it out for future maintainers
-
-Deployment is handled by the GitHub Action [deploy_to_azure_functions.yml](.github/workflows/deploy_to_azure_functions.yml)
-
-## Running in Cloud
-
-### Setup
-
-1. Go to Storage Account "chooseyourownadventure" > Security + Networking > Access Keys
-2. Copy one of the "Connection String" values (either for key1 or key2)
-3. Save into the app settings in Azure, under `AzureWebJobsStorage`
-   - You can access this in the VS Code Azure extension > Function App > choose-your-own-adventure-demo-flex-eus > Application Settings
-
-### Example cURL request against deployed app
-
-Once the Azure function is deployed, here is how to get the Invoke URL (used below in "Example cURL request against deployed app"):
-
-```bash
-func azure functionapp list-functions choose-your-own-adventure-demo-flex-eus --show-keys
-```
-
-Note, in the URL below, replace `<redacted>` with actual value from Invoke URL
-
-```bash
-curl -L "https://choose-your-own-adventure-demo-flex-eus-dpaedjd2evcxhcd5.eastus-01.azurewebsites.net/api/twiliohandler?code=<redacted>" \
-  -H "Content-Type: application/json" \
-  --data '{"name": "World"}'
-```
-
-Expected response:
-```
-Hello, World. This HTTP triggered function executed successfully.
-```
