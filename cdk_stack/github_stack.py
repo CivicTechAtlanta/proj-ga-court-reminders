@@ -32,13 +32,20 @@ class GithubDeployStack(Stack):
                         "token.actions.githubusercontent.com:sub": "repo:CivicTechAtlanta/proj-ga-court-reminders:ref:refs/heads/main",
                         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                     }
-                }
+                },
             ),
+            managed_policies=[
+                aws_iam.ManagedPolicy.from_aws_managed_policy_name(
+                    "AmazonSSMReadOnlyAccess"
+                )
+            ],
             max_session_duration=Duration.hours(1),
         )
+
         # Output Role ARN to place in github secret: AWS_GITHUBACTIONROLE_ARN
         CfnOutput(
-        self, "GitHubActionsRoleArn",
-        value=github_role.role_arn,
-        description="ARN for GitHub Actions role"
-    )
+            self,
+            "GitHubActionsRoleArn",
+            value=github_role.role_arn,
+            description="ARN for GitHub Actions role",
+        )
