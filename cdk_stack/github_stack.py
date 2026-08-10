@@ -32,7 +32,7 @@ class GithubDeployStack(Stack):
                         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                     }
                 },
-                assume_role_action="sts:AssumeRoleWithWebIdentity",
+                assume_role_action="sts:AssumeRole",
             ),
             max_session_duration=Duration.hours(1),
         )
