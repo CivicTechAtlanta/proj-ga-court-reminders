@@ -34,12 +34,22 @@ class GithubDeployStack(Stack):
                     }
                 },
             ),
-            managed_policies=[
-                aws_iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "AmazonSSMReadOnlyAccess"
-                )
-            ],
             max_session_duration=Duration.hours(1),
+        )
+
+        github_role.add_to_policy(
+            aws_iam.PolicyStatement(
+                resources=["*"],
+                actions=[
+                    "ssm:GetParameter",
+                    "cloudFormation:*",
+                    "s3:GetBucketLocation",
+                    "s3:ListBucket",
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:DeleteObject",
+                ],
+            )
         )
 
         # Output Role ARN to place in github secret: AWS_GITHUBACTIONROLE_ARN

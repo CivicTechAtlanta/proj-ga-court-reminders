@@ -15,6 +15,7 @@ permissions:
       contents: read    # This is required for actions/checkout
 jobs:
   DeployToAWS:
+    name: "Deploy to AWS"
     runs-on: ubuntu-latest
     steps:
       - name: Git clone the repository
