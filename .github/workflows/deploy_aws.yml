@@ -21,11 +21,6 @@ jobs:
     steps:
       - name: Git clone the repository
         uses: actions/checkout@v3
-
-      - name: Get ID token for debugging
-        run: |
-          ID_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
-          echo $ID_TOKEN 
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v1.7.0
         with:
