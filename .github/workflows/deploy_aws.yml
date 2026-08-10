@@ -42,8 +42,11 @@ jobs:
         with:
           enable-cache: true
       - name: Setup Project
-        run: uv sync --locked
+        run: |
+            source .venv/bin/activate
+            uv sync --locked
       - name: CDK Synth and Deploy
         run: |
+            source .venv/bin/activate
             cdk synth
             cdk deploy CourtReminderStack --require-approval never
