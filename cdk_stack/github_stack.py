@@ -28,7 +28,7 @@ class GithubDeployStack(Stack):
                 github_oidc_provider.open_id_connect_provider_arn,
                 conditions={
                     "StringEquals": {
-                        "token.actions.githubusercontent.com:sub": "repo: CivicTechAtlanta/proj-ga-court-reminders:ref:refs/heads/main",
+                        "token.actions.githubusercontent.com:sub": "repo:CivicTechAtlanta/proj-ga-court-reminders:ref:refs/heads/main",
                         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                     }
                 }
