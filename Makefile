@@ -4,8 +4,8 @@
 setup:
 	uv sync
 
-deploy:
-	cdk deploy
+synth:
+	cdk synth
 
 
 # setup:

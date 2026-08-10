@@ -224,5 +224,5 @@ def handle_exit(queue, to_number, current_state):
     for ref in message_refs:
         print("deleting queue message: {}".format(ref["id"]))
         queue.delete_message(ref["id"], pop_receipt=ref["pop_receipt"])
-    
+
     update_state(to_number, "initial")
