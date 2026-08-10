@@ -45,5 +45,5 @@ jobs:
             uv sync --locked
       - name: CDK Synth and Deploy
         run: |
-            uv run cdk synth
+            uv run cdk synth CourtReminderStack
             uv run cdk deploy CourtReminderStack --require-approval never

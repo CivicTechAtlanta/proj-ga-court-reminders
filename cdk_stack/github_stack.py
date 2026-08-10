@@ -43,6 +43,7 @@ class GithubDeployStack(Stack):
                 actions=[
                     "ssm:GetParameter",
                     "cloudFormation:*",
+                    "iam:PassRole",
                     "s3:GetBucketLocation",
                     "s3:ListBucket",
                     "s3:GetObject",
