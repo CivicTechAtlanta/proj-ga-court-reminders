@@ -2,10 +2,10 @@
 name: Deploy to AWS 
 
 # Controls when the action will run. Invokes the workflow on push events but only for the main branch
+# (no pull_request trigger: the AWS role's OIDC trust policy only allows refs/heads/main,
+# so PR runs can never assume the role)
 on:
   push:
-    branches: [ main ]
-  pull_request:
     branches: [ main ]
 
 env:
