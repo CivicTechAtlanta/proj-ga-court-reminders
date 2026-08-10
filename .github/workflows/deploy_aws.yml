@@ -27,6 +27,17 @@ jobs:
           role-to-assume: ${{ secrets.AWS_GITHUBACTIONROLE_ARN }} 
           role-session-name: GitHub_to_AWS_via_FederatedOIDC
           aws-region: ${{ env.AWS_REGION }}
-      - name: Sts GetCallerIdentity
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - name: Setup Project
+        run: uv sync --locked
+      - name: CDK Synth and Deploy
         run: |
-          aws sts get-caller-identity
+            cdk synth
+            cdk deploy CourtReminderStack
