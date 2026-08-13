@@ -5,6 +5,7 @@ from aws_cdk import (
     Stack,
     Duration,
     aws_iam,
+    CfnOutput,
 )
 
 
@@ -24,7 +25,7 @@ class GithubDeployStack(Stack):
             self,
             "GithubActionRole",
             description="Role assumed by Github Actions for deployments",
-            assumed_by=aws_iam.FederatedPrincipal(
+            assumed_by=aws_iam.WebIdentityPrincipal(
                 github_oidc_provider.open_id_connect_provider_arn,
                 conditions={
                     "StringEquals": {
@@ -32,7 +33,30 @@ class GithubDeployStack(Stack):
                         "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
                     }
                 },
-                assume_role_action="sts:AssumeRoleWithWebIdentity",
             ),
             max_session_duration=Duration.hours(1),
+        )
+
+        github_role.add_to_policy(
+            aws_iam.PolicyStatement(
+                resources=["*"],
+                actions=[
+                    "ssm:GetParameter",
+                    "cloudFormation:*",
+                    "iam:PassRole",
+                    "s3:GetBucketLocation",
+                    "s3:ListBucket",
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:DeleteObject",
+                ],
+            )
+        )
+
+        # Output Role ARN to place in github secret: AWS_GITHUBACTIONROLE_ARN
+        CfnOutput(
+            self,
+            "GitHubActionsRoleArn",
+            value=github_role.role_arn,
+            description="ARN for GitHub Actions role",
         )

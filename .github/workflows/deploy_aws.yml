@@ -2,8 +2,6 @@
 name: Deploy to AWS 
 
 # Controls when the action will run. Invokes the workflow on push events but only for the main branch
-# (no pull_request trigger: the AWS role's OIDC trust policy only allows refs/heads/main,
-# so PR runs can never assume the role)
 on:
   push:
     branches: [ main ]
@@ -17,6 +15,7 @@ permissions:
       contents: read    # This is required for actions/checkout
 jobs:
   DeployToAWS:
+    name: "Deploy to AWS"
     runs-on: ubuntu-latest
     steps:
       - name: Git clone the repository
@@ -27,6 +26,24 @@ jobs:
           role-to-assume: ${{ secrets.AWS_GITHUBACTIONROLE_ARN }} 
           role-session-name: GitHub_to_AWS_via_FederatedOIDC
           aws-region: ${{ env.AWS_REGION }}
-      - name: Sts GetCallerIdentity
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "22"
+      - name: Setup CDK
+        run:  npm install -g aws-cdk
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - name: Setup Project
         run: |
-          aws sts get-caller-identity
+            uv sync --locked
+      - name: CDK Synth and Deploy
+        run: |
+            uv run cdk synth CourtReminderStack
+            uv run cdk deploy CourtReminderStack --require-approval never
