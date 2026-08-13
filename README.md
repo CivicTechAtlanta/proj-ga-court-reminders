@@ -30,7 +30,7 @@ Prerequisite: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
 ```bash
 make db-up      # start Postgres (first run seeds schema + fixtures)
-make db-verify  # run the reminder query; expect 7 rows
+make db-verify  # run the reminder query; expect 11 rows
 make db-psql    # open a psql shell
 make db-down    # stop (data volume is kept)
 make db-reset   # destroy data volume and re-seed

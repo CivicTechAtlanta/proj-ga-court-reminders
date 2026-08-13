@@ -37,12 +37,17 @@ Fidelity choices, so the prod query runs near-verbatim (see the translation in
   cover every filter in the query: window boundaries (inclusive lower,
   exclusive upper), phone-type filter, first-defendant-only join, a duplicate
   phone row collapsed by DISTINCT, and a case with daily hearings for 14 days.
+  Phone numbers mirror the format soup of the benchmark database — E.164,
+  parens/dots/dashes, bare digits, extension text, a format-variant duplicate
+  DISTINCT cannot collapse, and garbage entries (placeholder text, truncated,
+  empty) — so downstream normalization gets exercised.
 
 ## Consequences
 
 Easier: `make db-up` gives zero-config prod-shaped data; the prod query needs
 only its date arithmetic translated; fixtures exercise every query filter, so
-the expected result (7 rows, 8 without DISTINCT) doubles as a regression check.
+the expected result (11 rows, 12 without DISTINCT) doubles as a regression
+check.
 
 More difficult: it is still Postgres, not SQL Server — other T-SQL built-ins
 would need translating, and SQL Server-specific behavior (locking hints,
