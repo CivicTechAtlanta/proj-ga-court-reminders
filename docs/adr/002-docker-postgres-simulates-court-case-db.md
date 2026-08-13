@@ -37,10 +37,15 @@ Fidelity choices, so the prod query runs near-verbatim (see the translation in
   cover every filter in the query: window boundaries (inclusive lower,
   exclusive upper), phone-type filter, first-defendant-only join, a duplicate
   phone row collapsed by DISTINCT, and a case with daily hearings for 14 days.
-  Phone numbers mirror the format soup of the benchmark database — E.164,
-  parens/dots/dashes, bare digits, extension text, a format-variant duplicate
-  DISTINCT cannot collapse, and garbage entries (placeholder text, truncated,
-  empty) — so downstream normalization gets exercised.
+  Data quality mirrors the benchmark database so downstream normalization
+  gets exercised: phone numbers span E.164, parens/dots/dashes, bare digits,
+  extension text, a format-variant duplicate DISTINCT cannot collapse, and
+  garbage entries (placeholder text, truncated, empty); names include ALL
+  CAPS, stray whitespace, suffixes and 'LAST, FIRST' jammed into one field,
+  FNU/LNU placeholders, and mojibake; PhoneType is unconstrained and dirty
+  ('Cell', 'CELL PHONE') so the query's case-sensitive filter visibly misses
+  those rows; one courtroom code has no lookup row (CourtRoom returns NULL),
+  and case numbers include a trailing space and an off-format value.
 
 ## Consequences
 
