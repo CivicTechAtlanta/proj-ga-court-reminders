@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${COURT_DB_USER:-court}
+      POSTGRES_PASSWORD: ${COURT_DB_PASSWORD:-court}
+      POSTGRES_DB: ${COURT_DB_NAME:-courtdb}
+      # Court-local time, so CURRENT_DATE behaves like prod's GETDATE()
+      TZ: America/New_York
+    ports:
+      # Non-default host port to avoid colliding with a locally installed
+      # Postgres (5432) or other projects' containers
+      - "${COURT_DB_PORT:-5434}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # init scripts run only when the data volume is empty (first run)
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  db-data:

@@ -18,7 +18,33 @@ Lambda functions that send SMS court date reminders.
 
 
 ## Running Locally
-not yet sorted
+
+### Local court database
+
+A Docker Postgres simulates the production court case-management database
+(Odyssey-style SQL Server) with the tables used by the reminder query. Fixtures
+are seeded automatically the first time the database starts.
+
+Prerequisite: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+(or any `docker compose` v2+).
+
+```bash
+make db-up      # start Postgres (first run seeds schema + fixtures)
+make db-verify  # run the reminder query; expect 11 rows
+make db-psql    # open a psql shell
+make db-down    # stop (data volume is kept)
+make db-reset   # destroy data volume and re-seed
+```
+
+Connection string: `postgresql://court:court@localhost:5434/courtdb`
+(overridable via `COURT_DB_*` vars in `.env`; see `.template.env`).
+
+Fixture event dates are anchored to the date the database is first started, so
+the "7 days out" reminder query matches immediately. One case has daily
+hearings for two weeks, so results stay non-empty for about a week — after
+that, run `make db-reset` to re-anchor the dates. See
+[ADR 002](docs/adr/002-docker-postgres-simulates-court-case-db.md) for design
+details.
 
 ## Adding a new dependency
 ```bash
