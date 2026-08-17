@@ -2,22 +2,47 @@
 
 Lambda functions that send SMS court date reminders.
 
-## Setting up AWS and CDK
-1. Install [aws cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
-2. Install aws cdk cli using npm (`npm install -g aws-cdk`)
-3. Make sure you're logged in to AWS. Configure login with aws cli (`aws login`). 
+## Running Locally
 
-
-## Local Development
+### Setup for Local Development
 1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
-2. Install dependencies (For details, see "setup" in repo top-level [`Makefile`](./Makefile)):
+2. Install [aws cli](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+3. Install aws cdk cli using npm (`npm install -g aws-cdk`)
+4. Install dependencies (For details, see "setup" in repo top-level [`Makefile`](./Makefile)):
    ```bash
    make setup
    ```
-3. After CDK changes, run `cdk deploy`. If actively developing, run `cdk watch` in a different terminal
+5. Start up Floci emulator in a new terminal(may need to run as superuser): `docker run --rm --name floci -p 4566:4566 -v /var/run/docker.sock:/var/run/docker.sock floci/floci:latest` 
+6. Set the aws cli env vars to point to floci: ```
+	export AWS_ENDPOINT_URL=http://localhost:4566
+	export AWS_ACCESS_KEY_ID=test
+	export AWS_SECRET_ACCESS_KEY=test
+	export AWS_DEFAULT_REGION=us-east-1
+   ``` 
+7. If running for the first time, run `uv run cdk bootstrap` then `uv run cdk deploy CourtReminderStack`
+8. After any changes to the lambda code, deploy using `uv run cdk deploy CourtReminderStack`. You can also run it in watch mode to auto deploy: `uv run cdk watch`
+
+### Invoke a lambda
+1. Make sure the aws cli env vars are set for local dev: ```
+	export AWS_ENDPOINT_URL=http://localhost:4566
+	export AWS_ACCESS_KEY_ID=test
+	export AWS_SECRET_ACCESS_KEY=test
+	export AWS_DEFAULT_REGION=us-east-1
+   ```
+2. List the lambdas: `aws lambda list-functions`
+3. Select a lambda to invoke and take note of its function arn or function name. 
+4. Invoke it: ```
+   aws lambda invoke \
+    --function-name <Function name or ARN> \
+    --cli-binary-format raw-in-base64-out \
+    --payload '{ "path": "/bob" }' \
+    response.json
+   ```
 
 
-## Running Locally
+
+
+
 
 ### Local court database
 
