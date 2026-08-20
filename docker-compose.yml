@@ -22,5 +22,14 @@ services:
       retries: 12
       start_period: 10s
 
+  floci:
+    image: floci/floci:latest
+    ports:
+      - "4566:4566"
+    volumes:
+      - /var/run/docker.sock:${DOCKER_HOST:-/var/run/docker.sock}
+      - floci-data:/app/data
+
 volumes:
   db-data:
+  floci-data:
