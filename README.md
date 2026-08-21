@@ -59,13 +59,8 @@ and then log out and back in:
 sudo usermod -aG docker "$USER"
 ```
 
-Membership in the `docker` group grants root-level access. Rootless Docker is
-also supported; when using it, expose its default socket to Floci as described
-in Docker's [rootless guidance](https://docs.docker.com/engine/security/rootless/tips/):
-
-```bash
-export DOCKER_SOCKET="${XDG_RUNTIME_DIR}/docker.sock"
-```
+Membership in the `docker` group grants root-level access. Rootless Docker and
+other non-default daemon sockets are not currently verified.
 
 The project currently uses Lambda's default x86-64 architecture. ARM64 Linux
 hosts may require x86-64 container emulation and are not yet verified.
