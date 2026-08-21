@@ -1,3 +1,8 @@
+"""Start the court-reminder workflow.
+
+Future work will use this Lambda to find upcoming hearings and prepare reminders.
+"""
+
 import json
 
 def handler(event, context):
