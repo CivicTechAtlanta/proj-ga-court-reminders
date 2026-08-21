@@ -12,7 +12,7 @@ Lambda functions that send SMS court date reminders.
    ```bash
    make setup
    ```
-5. Start up Floci emulator in a new terminal(may need to run as superuser): `docker run --rm --name floci -p 4566:4566 -v /var/run/docker.sock:/var/run/docker.sock floci/floci:latest` 
+5. Start up Floci emulator in a new terminal: `docker compose up floci` 
 6. Set the aws cli env vars to point to floci: ```
 	export AWS_ENDPOINT_URL=http://localhost:4566
 	export AWS_ACCESS_KEY_ID=test
