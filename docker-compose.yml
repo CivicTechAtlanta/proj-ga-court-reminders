@@ -1,3 +1,5 @@
+name: court-reminders
+
 services:
   db:
     image: postgres:17-alpine
@@ -23,11 +25,17 @@ services:
       start_period: 10s
 
   floci:
-    image: floci/floci:latest
+    image: floci/floci:1.6.0
+    environment:
+      FLOCI_HOSTNAME: floci
+      FLOCI_SERVICES_DOCKER_NETWORK: court-reminders_default
+      FLOCI_LOG_LEVEL: info
     ports:
       - "4566:4566"
     volumes:
-      - /var/run/docker.sock:${DOCKER_HOST:-/var/run/docker.sock}
+      # Docker Desktop, Engine, and Colima normally expose this path. Rootless
+      # Linux users can set DOCKER_SOCKET to their daemon's socket path.
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
       - floci-data:/app/data
 
 volumes:
