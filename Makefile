@@ -90,7 +90,7 @@ local-deploy: setup local-bootstrap
 
 ## Start the full local stack and deploy the current Lambda code
 local-start: local-up local-deploy
-	@echo "Local Lambdas are ready. Run: make local-invoke FUNCTION=CourtBotMain EVENT=events/hello-api.json"
+	@echo "Local Lambdas are ready. Run: make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json"
 
 ## Invoke any CDK Lambda by construct name; optionally set EVENT=path.json
 local-invoke:

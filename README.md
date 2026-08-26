@@ -150,7 +150,7 @@ construct name:
 
 ```bash
 make local-deploy
-make local-invoke FUNCTION=CourtBotMain EVENT=events/hello-api.json
+make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
 ```
 
 The invocation response and any function error are printed in the current
@@ -167,11 +167,12 @@ make local-invoke FUNCTION=CourtBotMessageResponse EVENT=path/to/event.json
 
 Add the handler under `lambda/`, register a `PythonFunction` with a unique CDK
 construct name in `cdk_stack/cdk_stack.py`, and add a sample event under
-`events/` when needed. Deploy the new infrastructure and invoke the function:
+`scripts/events/` when needed. Deploy the new infrastructure and invoke the
+function:
 
 ```bash
 make local-reset
-make local-invoke FUNCTION=YourConstructName EVENT=events/your-event.json
+make local-invoke FUNCTION=YourConstructName EVENT=scripts/events/your-event.json
 ```
 
 No Lambda-specific Make target is required. `local-invoke` calls the Lambda
