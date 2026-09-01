@@ -35,6 +35,7 @@ __azurite_db*__.json
 
 # Generated deployment artifact
 requirements.txt
+!lambda/requirements.txt
 
 *.swp
 

@@ -18,6 +18,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "psycopg[binary]>=3.2",
     "pytest",
     "ruff",
 ]
@@ -30,6 +31,7 @@ testpaths = ["tests"]
 markers = [
     "integration_twilio: Twilio SMS integration tests (require credentials)",
     "integration_azure: Azure Functions integration tests (require running function host)",
+    "integration_court_db: local court DB integration tests (require make db-up)",
 ]
 
 [tool.hatch.build.targets.wheel]

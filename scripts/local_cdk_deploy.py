@@ -38,7 +38,16 @@ def main():
             "This helper only runs against local Floci. Use `make local-deploy`."
         )
 
-    command = ["cdk", "deploy", STACK_NAME, "--require-approval", "never"]
+    command = [
+        "cdk",
+        "deploy",
+        STACK_NAME,
+        "--require-approval",
+        "never",
+        # Floci cannot host RDS/VPC; keep the Lambdas on the local Postgres fixtures
+        "--context",
+        "court_db=local",
+    ]
     if _stack_exists():
         command.append("--hotswap")
         print("Existing Floci stack found; deploying Lambda changes with CDK hotswap")

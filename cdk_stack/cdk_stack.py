@@ -1,44 +1,59 @@
 from constructs import Construct
-from aws_cdk import Stack, aws_lambda
+from aws_cdk import Stack, aws_ec2, aws_lambda
 from aws_cdk import aws_lambda_python_alpha as lp
+
+from database_stack import CourtDatabaseStack
 
 
 class CourtReminderStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    """The reminder Lambdas.
+
+    Pass `database` to place every Lambda inside the court database VPC and
+    point the court_db wrapper at RDS SQL Server. Leave it None for the local
+    Floci stack, where the wrapper defaults to the Docker Postgres fixtures.
+    """
+
+    def __init__(
+        self,
+        scope: Construct,
+        construct_id: str,
+        database: CourtDatabaseStack | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        self._database = database
 
-        main_func = lp.PythonFunction(
+        self._function("CourtBotMain", "main.py")
+        self._function("CourtBotMessageSender", "message_sender.py")
+        self._function("CourtBotMessageResponse", "message_response.py")
+        self._function("CourtBotMessageStatus", "message_status.py")
+
+    def _function(self, construct_id: str, index: str) -> lp.PythonFunction:
+        function = lp.PythonFunction(
             self,
-            "CourtBotMain",
+            construct_id,
             entry="lambda",
             runtime=aws_lambda.Runtime.PYTHON_3_12,
-            index="main.py",
+            index=index,
             handler="handler",
+            **self._database_placement(),
         )
+        if self._database is not None:
+            self._database.database.secret.grant_read(function)
+        return function
 
-        message_sender_func = lp.PythonFunction(
-            self,
-            "CourtBotMessageSender",
-            entry="lambda",
-            runtime=aws_lambda.Runtime.PYTHON_3_12,
-            index="message_sender.py",
-            handler="handler",
-        )
-
-        message_response_func = lp.PythonFunction(
-            self,
-            "CourtBotMessageResponse",
-            entry="lambda",
-            runtime=aws_lambda.Runtime.PYTHON_3_12,
-            index="message_response.py",
-            handler="handler",
-        )
-
-        message_status_func = lp.PythonFunction(
-            self,
-            "CourtBotMessageStatus",
-            entry="lambda",
-            runtime=aws_lambda.Runtime.PYTHON_3_12,
-            index="message_status.py",
-            handler="handler",
-        )
+    def _database_placement(self) -> dict:
+        """Constructor arguments that connect a Lambda to the database."""
+        if self._database is None:
+            return {}
+        return {
+            "vpc": self._database.vpc,
+            "vpc_subnets": aws_ec2.SubnetSelection(
+                subnet_type=aws_ec2.SubnetType.PRIVATE_ISOLATED
+            ),
+            "security_groups": [self._database.client_security_group],
+            "environment": {
+                "COURT_DB_ENGINE": "sqlserver",
+                "COURT_DB_SECRET_NAME": self._database.database.secret.secret_name,
+            },
+        }
