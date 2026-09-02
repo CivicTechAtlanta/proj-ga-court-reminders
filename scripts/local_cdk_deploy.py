@@ -44,7 +44,9 @@ def main():
         STACK_NAME,
         "--require-approval",
         "never",
-        # Floci cannot host RDS/VPC; keep the Lambdas on the local Postgres fixtures
+        # Floci's RDS runs only Postgres, MySQL, and MariaDB containers, not the
+        # SQL Server Express instance in CourtDatabaseStack (its VPC support is
+        # API-only), so keep the Lambdas on the compose Postgres fixtures.
         "--context",
         "court_db=local",
     ]
