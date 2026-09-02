@@ -1,29 +1,6 @@
 name: court-reminders
 
 services:
-  db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: ${COURT_DB_USER:-court}
-      POSTGRES_PASSWORD: ${COURT_DB_PASSWORD:-court}
-      POSTGRES_DB: ${COURT_DB_NAME:-courtdb}
-      # Court-local time, so CURRENT_DATE behaves like prod's GETDATE()
-      TZ: America/New_York
-    ports:
-      # Non-default host port to avoid colliding with a locally installed
-      # Postgres (5432) or other projects' containers
-      - "${COURT_DB_PORT:-5434}:5432"
-    volumes:
-      - db-data:/var/lib/postgresql/data
-      # init scripts run only when the data volume is empty (first run)
-      - ./lambda/court_db/seed/postgres:/docker-entrypoint-initdb.d:ro
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 10s
-
   floci:
     image: floci/floci:1.6.0
     environment:
@@ -32,10 +9,14 @@ services:
       FLOCI_LOG_LEVEL: info
     ports:
       - "4566:4566"
+      # Floci proxies each RDS instance it starts on a port from this range
+      # (first instance 7001) at its own container address. Same numbers on
+      # both sides, so the port it reports is valid inside the network (the
+      # Lambdas) and from this machine as localhost (`make db-url`).
+      - "7001-7099:7001-7099"
     volumes:
       - /var/run/docker.sock:${DOCKER_HOST:-/var/run/docker.sock}
       - floci-data:/app/data
 
 volumes:
-  db-data:
   floci-data:

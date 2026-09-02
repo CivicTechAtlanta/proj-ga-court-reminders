@@ -3,7 +3,7 @@
 Runs only when a SQL Server is reachable with these variables set, e.g. a
 local container: COURT_MSSQL_HOST (default localhost), COURT_MSSQL_PORT
 (default 1433), COURT_MSSQL_USER (default sa), COURT_MSSQL_PASSWORD
-(required). The Postgres comparison additionally needs `make db-up`.
+(required). The Postgres comparison additionally needs `make local-start`.
 """
 
 import os
@@ -63,7 +63,7 @@ def test_sqlserver_matches_local_postgres(sqlserver_config):
     try:
         postgres.ping()
     except Exception:
-        pytest.skip("local Postgres not running; run: make db-up")
+        pytest.skip("court database not running in Floci; run: make local-start")
 
     def key(hearing):
         return (

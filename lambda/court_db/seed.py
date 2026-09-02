@@ -1,8 +1,7 @@
 """Load the court case schema and fixtures into a database.
 
 The scripts under court_db/seed/<engine>/ carry the same data for each
-engine: Postgres for the docker-compose database (which also runs them
-itself on first start) and the Floci-hosted RDS instance, SQL Server for
+engine: Postgres for the RDS instance Floci hosts locally, SQL Server for
 RDS in AWS. The seed Lambda runs this during `cdk deploy`.
 """
 
@@ -60,7 +59,7 @@ def load_fixtures(config, sql_dir=None, connect=None) -> dict:
 
     if config.engine == "sqlserver":
         # RDS SQL Server starts with no user database (CDK cannot name one),
-        # whereas Postgres gets courtdb from database_name / POSTGRES_DB.
+        # whereas Postgres gets courtdb from the instance's database_name.
         _ensure_sqlserver_database(config, connect)
 
     scripts = sorted(sql_dir.glob("*.sql"))

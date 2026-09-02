@@ -1,4 +1,4 @@
-"""Deploy the project's Lambda definitions to the local AWS emulator.
+"""Deploy the CDK stacks to the local AWS emulator.
 
 After the first deployment, the script uses faster updates when possible.
 """

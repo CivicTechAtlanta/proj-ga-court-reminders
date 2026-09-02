@@ -5,8 +5,7 @@
 -- and queries written in prod (SQL Server) casing work unchanged.
 -- Never quote identifiers in this schema or in the fixture files.
 
--- Rerunnable: the seed Lambda reloads everything on each run, and the
--- postgres image runs this only once on an empty data volume anyway.
+-- Rerunnable: the seed Lambda reloads everything on each run.
 DROP SCHEMA IF EXISTS dbo CASCADE;
 CREATE SCHEMA dbo;
 

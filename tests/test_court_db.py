@@ -72,7 +72,7 @@ def local_config(engine="postgres"):
     return DatabaseConfig(
         engine=engine,
         host="localhost",
-        port=5434,
+        port=7001,
         database="courtdb",
         user="court",
         password="court",
@@ -117,7 +117,7 @@ def test_adapters_share_the_column_contract(repository_class):
     assert "PhoneNumber" in sql
 
 
-def test_config_defaults_match_local_compose():
+def test_config_defaults_match_the_floci_database():
     config = DatabaseConfig.from_env(environ={})
     assert config == local_config()
 

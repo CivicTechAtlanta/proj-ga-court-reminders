@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup synth db-up db-down db-reset db-psql db-verify lint format \
+.PHONY: help setup synth db-url db-psql db-verify db-reset lint format \
 	requirements doctor local-up local-deploy local-start local-invoke \
 	local-bootstrap local-down local-reset
 
@@ -16,26 +16,24 @@ setup:
 synth:
 	uv run cdk synth
 
-## Start only the mock court database
-db-up:
-	docker compose up --detach --wait db
+## Print the connection URL of the court database running in Floci (DBeaver, psql)
+db-url:
+	@$(LOCAL_AWS_ENV) uv run --with boto3==1.40.3 python scripts/local_db_url.py
 
-## Stop all Compose services while preserving their data volumes
-db-down:
-	docker compose down
-
-## Destroy data volumes and re-seed the date-relative court fixtures
-db-reset:
-	docker compose down --volumes
-	docker compose up --detach --wait db
-
-## Open a psql shell against the mock court database
+## Open a psql shell against the court database running in Floci
 db-psql:
-	docker compose exec db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+	docker run --rm -it --network court-reminders_default postgres:16-alpine \
+		psql "$$($(LOCAL_AWS_ENV) uv run --with boto3==1.40.3 python scripts/local_db_url.py --docker-network)"
 
-## Run the seven-day fixture query; expect 11 rows after a reset
+## Run the seven-day fixture query; expect 11 rows right after a seed
 db-verify:
-	docker compose exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1' < db/queries/next_week_hearings.sql
+	docker run --rm -i --network court-reminders_default postgres:16-alpine \
+		psql "$$($(LOCAL_AWS_ENV) uv run --with boto3==1.40.3 python scripts/local_db_url.py --docker-network)" \
+		-v ON_ERROR_STOP=1 < db/queries/next_week_hearings.sql
+
+## Re-seed the court database in Floci, re-anchoring the date-relative fixtures
+db-reset:
+	$(LOCAL_AWS_ENV) uv run --with boto3==1.40.3 python scripts/local_invoke.py CourtBotDatabaseLoader
 
 ## Run the repository Ruff checks
 lint:
@@ -76,9 +74,9 @@ doctor:
 	@docker info >/dev/null 2>&1 && echo "ok: Docker daemon" || { echo "Docker daemon unavailable. Start Docker Desktop, Docker Engine, or Colima."; exit 1; }
 	@command -v cdk >/dev/null && echo "ok: AWS CDK CLI" || { echo "missing: AWS CDK CLI"; exit 1; }
 
-## Start the local AWS emulator and the fixture database it serves Lambdas from
+## Start the local AWS emulator
 local-up: doctor
-	docker compose up --detach --wait floci db
+	docker compose up --detach --wait floci
 
 ## Bootstrap Floci once; repeated CDK bootstraps are not emulator-safe
 local-bootstrap:
@@ -106,6 +104,6 @@ local-down:
 ## Delete local data, rebuild services, and redeploy the CDK stack
 local-reset: doctor
 	docker compose stop floci
-	uv run python scripts/local_cleanup.py
+	uv run python scripts/local_cleanup.py --volumes
 	docker compose down --volumes --remove-orphans
 	$(MAKE) local-start

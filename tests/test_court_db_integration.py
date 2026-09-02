@@ -1,7 +1,8 @@
-"""Integration tests against the local Docker fixture database.
+"""Integration tests against the court database running in Floci.
 
-These run only when the compose db service is up (make db-up); otherwise
-each test skips with a pointer to the command. They prove the wrapper
+These run only when the local stack is deployed (make local-start), through
+the RDS proxy port docker-compose.yml publishes; otherwise each test skips
+with a pointer to the command. They prove the wrapper
 pulls the same rows as the canonical query in
 db/queries/next_week_hearings.sql.
 """
@@ -25,7 +26,7 @@ def repository():
     try:
         repo.ping()
     except Exception:
-        pytest.skip("local court DB is not running; run: make db-up")
+        pytest.skip("court database not running in Floci; run: make local-start")
     return repo
 
 

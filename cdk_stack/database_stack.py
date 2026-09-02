@@ -76,7 +76,7 @@ class CourtDatabaseStack(Stack):
             # string as its password), so the local instance takes a plain
             # password and the secret below is written out by hand.
             credentials = aws_rds.Credentials.from_password(
-                _USERNAME, SecretValue.unsafe_plain_text(_LOCAL_PASSWORD)
+                _LOCAL_USERNAME, SecretValue.unsafe_plain_text(_LOCAL_PASSWORD)
             )
         else:
             # Generated into Secrets Manager; nothing stored in code. RDS
@@ -124,7 +124,7 @@ class CourtDatabaseStack(Stack):
                         self.database.db_instance_endpoint_port
                     ),
                     "dbname": SecretValue.unsafe_plain_text("courtdb"),
-                    "username": SecretValue.unsafe_plain_text(_USERNAME),
+                    "username": SecretValue.unsafe_plain_text(_LOCAL_USERNAME),
                     "password": SecretValue.unsafe_plain_text(_LOCAL_PASSWORD),
                 },
             )
@@ -145,7 +145,9 @@ class CourtDatabaseStack(Stack):
 
 
 _USERNAME = "courtadmin"
-# Local emulator only; matches the docker-compose fixture database defaults.
+# Local emulator only: dummy credentials matching the COURT_DB_* defaults
+# that host-side tools and tests use (see .template.env).
+_LOCAL_USERNAME = "court"
 _LOCAL_PASSWORD = "court"
 
 

@@ -1,4 +1,4 @@
-"""Adapter for the local Docker Postgres fixture database.
+"""Adapter for the Postgres court database Floci hosts locally.
 
 The hearing SQL matches db/queries/next_week_hearings.sql with the day
 offset parameterized. Identifiers stay unquoted per ADR 002 so the
