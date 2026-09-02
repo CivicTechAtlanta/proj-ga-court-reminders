@@ -20,6 +20,7 @@ step 4 starts everything with one command.
 | GNU Make | macOS: included with Xcode Command Line Tools (`xcode-select --install`). Linux: your package manager |
 | [uv](https://docs.astral.sh/uv/getting-started/installation/) | Python package manager; installs Python itself if needed |
 | [Node.js](https://nodejs.org/en/download) 22 or 24 LTS | installer, or a version manager such as [mise](https://mise.jdx.dev/) |
+| [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | installer; used for deploying to real AWS (the local stack does not need it) |
 | [AWS CDK CLI](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html) | after Node.js, run the command below |
 
 ```bash
