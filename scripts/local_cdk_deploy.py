@@ -1,4 +1,4 @@
-"""Deploy the project's Lambda definitions to the local AWS emulator.
+"""Deploy the CDK stacks to the local AWS emulator.
 
 After the first deployment, the script uses faster updates when possible.
 """
@@ -38,7 +38,17 @@ def main():
             "This helper only runs against local Floci. Use `make local-deploy`."
         )
 
-    command = ["cdk", "deploy", STACK_NAME, "--require-approval", "never"]
+    command = [
+        "cdk",
+        "deploy",
+        STACK_NAME,
+        "--require-approval",
+        "never",
+        # Floci's RDS runs Postgres, MySQL, and MariaDB containers but cannot
+        # start SQL Server, so CourtDatabaseStack deploys as Postgres here.
+        "--context",
+        "court_db=local",
+    ]
     if _stack_exists():
         command.append("--hotswap")
         print("Existing Floci stack found; deploying Lambda changes with CDK hotswap")

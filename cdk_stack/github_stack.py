@@ -1,5 +1,3 @@
-import os
-
 from constructs import Construct
 from aws_cdk import (
     Stack,

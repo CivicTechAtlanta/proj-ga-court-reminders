@@ -1,0 +1,95 @@
+"""Adapter for the production Odyssey-style SQL Server database.
+
+The hearing SQL is the near-verbatim production T-SQL (see ADR 002);
+only the day offset is parameterized. The pymssql driver is a
+placeholder choice pending the production connectivity decision.
+"""
+
+from .models import Hearing
+from .repository import CourtCaseRepository
+
+
+_HEARING_SELECT = """
+SELECT DISTINCT
+    c.CaseID,
+    cp.CasePartyID,
+    c.CaseNumber,
+    et.EventTypeDescription,
+    ce.CaseStartDateTime AS EventDateTime,
+    dbo.fnGetLookupDescription(e.CourtRoomCode, 'CourtRoom') AS CourtRoom,
+    pp.PhoneType,
+    pp.PhoneNumber
+FROM tblCase c WITH(NOLOCK)
+INNER JOIN tblCaseParty cp WITH(NOLOCK)
+    ON c.CaseID = cp.CaseID AND c.FirstDefendantID = cp.PartyID
+INNER JOIN tblPartyPhone pp WITH(NOLOCK)
+    ON cp.PartyID = pp.PartyID
+INNER JOIN tblCaseEvent ce WITH(NOLOCK)
+    ON c.CaseID = ce.CaseID
+INNER JOIN tblEvent e WITH(NOLOCK)
+    ON ce.EventID = e.EventID
+INNER JOIN tblEventType et WITH(NOLOCK)
+    ON ce.CaseEventTypeID = et.EventTypeID
+"""
+
+_UPCOMING_HEARINGS = (
+    _HEARING_SELECT
+    + """
+WHERE
+    ce.CaseStartDateTime >= DATEADD(d, %(days)s, CONVERT(DATE, GETDATE()))
+    AND ce.CaseStartDateTime < DATEADD(d, %(days)s + 1, CONVERT(DATE, GETDATE()))
+    AND pp.PhoneType IN ('CELL', 'MOBILE')
+ORDER BY EventDateTime, CaseNumber
+"""
+)
+
+_HEARINGS_FOR_CASE = (
+    _HEARING_SELECT
+    + """
+WHERE c.CaseNumber = %(case_number)s
+ORDER BY EventDateTime, CaseNumber
+"""
+)
+
+
+def open_connection(config):
+    """Open a DB-API connection to the SQL Server described by config."""
+    try:
+        import pymssql
+    except ImportError as exc:
+        raise RuntimeError(
+            f"The pymssql driver could not be imported: {exc}. It is either "
+            "missing from the bundle (lambda/requirements.txt needs pymssql) "
+            "or built for a different CPU architecture than the one running "
+            "this code."
+        ) from exc
+
+    return pymssql.connect(
+        server=config.host,
+        port=str(config.port),
+        database=config.database,
+        user=config.user,
+        password=config.password,
+    )
+
+
+class SqlServerCourtCaseRepository(CourtCaseRepository):
+    def __init__(self, config, connect=None):
+        self._config = config
+        self._connect = connect or (lambda: open_connection(self._config))
+
+    def ping(self) -> bool:
+        with self._connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT 1", {})
+            return cursor.fetchall()[0][0] == 1
+
+    def upcoming_hearings(self, days_ahead: int = 7) -> list[Hearing]:
+        return self._fetch_hearings(_UPCOMING_HEARINGS, {"days": days_ahead})
+
+    def hearings_for_case(self, case_number: str) -> list[Hearing]:
+        return self._fetch_hearings(_HEARINGS_FOR_CASE, {"case_number": case_number})
+
+    def _fetch_hearings(self, sql, params) -> list[Hearing]:
+        with self._connect() as connection, connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            return [Hearing.from_row(row) for row in cursor.fetchall()]

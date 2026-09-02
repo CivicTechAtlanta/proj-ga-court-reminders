@@ -5,12 +5,20 @@
 -- and queries written in prod (SQL Server) casing work unchanged.
 -- Never quote identifiers in this schema or in the fixture files.
 
+-- Rerunnable: the seed Lambda reloads everything on each run.
+DROP SCHEMA IF EXISTS dbo CASCADE;
 CREATE SCHEMA dbo;
 
--- Make unqualified names resolve to dbo for all future connections,
--- whatever POSTGRES_DB was named (\gexec runs the generated ALTER):
-SELECT format('ALTER DATABASE %I SET search_path TO dbo, public', current_database())
-\gexec
+-- Make unqualified names resolve to dbo for all future connections, whatever
+-- the database is named. A DO block rather than psql's \gexec so that plain
+-- drivers (the seed Lambda uses psycopg) can run this file unchanged.
+DO $$
+BEGIN
+    EXECUTE format(
+        'ALTER DATABASE %I SET search_path TO dbo, public', current_database()
+    );
+END
+$$;
 
 SET search_path TO dbo, public;
 

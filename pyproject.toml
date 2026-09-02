@@ -18,6 +18,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "boto3>=1.40.3",
+    "psycopg[binary]>=3.2",
+    "pymssql>=2.3,<3",
     "pytest",
     "ruff",
 ]
@@ -30,6 +33,7 @@ testpaths = ["tests"]
 markers = [
     "integration_twilio: Twilio SMS integration tests (require credentials)",
     "integration_azure: Azure Functions integration tests (require running function host)",
+    "integration_court_db: local court DB integration tests (require make db-up)",
 ]
 
 [tool.hatch.build.targets.wheel]
