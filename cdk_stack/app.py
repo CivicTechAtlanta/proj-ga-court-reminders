@@ -18,7 +18,7 @@ import aws_cdk
 
 from cdk_stack import CourtReminderStack
 from database_stack import CourtDatabaseStack
-from github_stack import GithubDeployStack
+from github_stack import GithubActionStack
 
 
 app = aws_cdk.App()
@@ -31,7 +31,7 @@ court_db = app.node.try_get_context("court_db") or "aws"
 if court_db not in {"aws", "local"}:
     raise SystemExit(f"Unknown court_db context {court_db!r}; expected aws or local")
 
-GithubDeployStack(app, "GithubActionStack")
+GithubActionStack(app, "GithubActionStack")
 
 database = CourtDatabaseStack(
     app,
