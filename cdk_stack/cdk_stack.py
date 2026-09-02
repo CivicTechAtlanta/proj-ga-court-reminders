@@ -1,7 +1,17 @@
+import hashlib
 import platform
+from pathlib import Path
 
 from constructs import Construct
-from aws_cdk import Duration, Stack, aws_ec2, aws_lambda
+from aws_cdk import (
+    CfnOutput,
+    CustomResource,
+    Duration,
+    Stack,
+    aws_ec2,
+    aws_lambda,
+    custom_resources,
+)
 from aws_cdk import aws_lambda_python_alpha as lp
 
 from database_stack import CourtDatabaseStack
@@ -31,12 +41,44 @@ class CourtReminderStack(Stack):
         self._function("CourtBotMessageStatus", "message_status.py")
 
         if database is not None:
-            # Seeds the dev database from inside its VPC; see make aws-db-load
-            self._function(
-                "CourtBotDatabaseLoader",
-                "database_loader.py",
-                timeout=Duration.minutes(5),
-            )
+            self._seed_database()
+
+    def _seed_database(self) -> None:
+        """Load the schema and fixtures into the dev database during deploy.
+
+        Follows the AWS "Use AWS CDK to initialize Amazon RDS instances"
+        pattern: a Lambda inside the database VPC applies the T-SQL under
+        lambda/court_db/seed/sqlserver/, and CloudFormation invokes it as a
+        custom resource. A hash of the scripts in the resource properties
+        makes CloudFormation re-run the seed whenever they change; pass
+        `-c reseed=<any new value>` to re-run it without changing them, for
+        example to re-anchor the fixture dates.
+        """
+        loader = self._function(
+            "CourtBotDatabaseLoader",
+            "database_loader.py",
+            timeout=Duration.minutes(5),
+        )
+        provider = custom_resources.Provider(
+            self, "CourtDatabaseSeedProvider", on_event_handler=loader
+        )
+        seed = CustomResource(
+            self,
+            "CourtDatabaseSeed",
+            service_token=provider.service_token,
+            resource_type="Custom::CourtDatabaseSeed",
+            properties={
+                "SeedVersion": _seed_version(),
+                "Reseed": self.node.try_get_context("reseed") or "",
+            },
+        )
+        seed.node.add_dependency(self._database.database)
+        CfnOutput(
+            self,
+            "CourtDatabaseSeedHearings",
+            value=seed.get_att_string("UpcomingHearings"),
+            description="Reminder-query row count right after seeding; expect 11",
+        )
 
     def _function(
         self, construct_id: str, index: str, **overrides
@@ -92,3 +134,21 @@ def _host_architecture() -> aws_lambda.Architecture:
     if platform.machine().lower() in {"arm64", "aarch64"}:
         return aws_lambda.Architecture.ARM_64
     return aws_lambda.Architecture.X86_64
+
+
+_SEED_DIR = (
+    Path(__file__).resolve().parent.parent
+    / "lambda"
+    / "court_db"
+    / "seed"
+    / "sqlserver"
+)
+
+
+def _seed_version() -> str:
+    """Short digest of the seed scripts, so edits to them trigger a re-seed."""
+    digest = hashlib.sha256()
+    for script in sorted(_SEED_DIR.glob("*.sql")):
+        digest.update(script.name.encode())
+        digest.update(script.read_bytes())
+    return digest.hexdigest()[:12]

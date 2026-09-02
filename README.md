@@ -232,19 +232,25 @@ it only for Floci.
 Add project dependencies with `uv add <dependency>`, then run
 `make requirements` to refresh the exported deployment requirements.
 
-### Load the AWS dev database
+### Seeding the AWS dev database
 
-The RDS SQL Server instance from `CourtDatabaseStack` starts empty. Give it
-the same schema and fixtures as the local Docker database:
-
-```bash
-make aws-db-load
-```
-
-This invokes the `CourtBotDatabaseLoader` Lambda, which runs inside the
-database VPC (a laptop cannot reach the instance directly). It creates the
+The RDS SQL Server instance from `CourtDatabaseStack` is seeded during
+`cdk deploy` with the same schema and fixtures as the local Docker database.
+`CourtReminderStack` runs the `CourtBotDatabaseLoader` Lambda as a
+CloudFormation custom resource (the pattern from AWS's
+[Use AWS CDK to initialize Amazon RDS instances](https://aws.amazon.com/blogs/infrastructure-and-automation/use-aws-cdk-to-initialize-amazon-rds-instances/)),
+because the instance is only reachable from inside its VPC. It creates the
 `courtdb` database if needed, then drops and reloads every court table from
 the T-SQL under `lambda/court_db/seed/sqlserver/`, the native counterpart of
-`db/init/`. Fixture dates anchor to the server's current date, so rerun it to
-re-anchor them. The result reports row counts and the reminder-query count,
-which should be 11 right after loading.
+`db/init/`.
+
+The seed re-runs automatically when those scripts change. Fixture dates
+anchor to the server's date at seeding time, so to re-anchor them without
+changing the scripts, deploy with a new `reseed` value:
+
+```bash
+uv run cdk deploy CourtReminderStack -c reseed=$(date +%s)
+```
+
+The stack output `CourtDatabaseSeedHearings` reports the reminder-query row
+count right after seeding, which should be 11.

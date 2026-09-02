@@ -1,15 +1,29 @@
-"""Load the court case schema and fixtures into the AWS dev database.
+"""Seed the AWS dev database with the court case schema and fixtures.
 
-Runs inside the database VPC, which a developer laptop cannot reach.
-Invoke it with `make aws-db-load`; it drops and recreates every table, so
-it is for the development database only.
+CloudFormation invokes this Lambda through the CourtDatabaseSeed custom
+resource during `cdk deploy`, from inside the database VPC that a laptop
+cannot reach. It drops and recreates every table, so it is for the
+development database only. Invoking it directly with an empty event re-runs
+the seed by hand and returns the summary.
 """
+
+import json
 
 from court_db import DatabaseConfig, court_case_repository
 from court_db.seed import load_fixtures
 
 
+PHYSICAL_RESOURCE_ID = "court-database-seed"
+
+
 def handler(event, context):
+    if event.get("RequestType") == "Delete":
+        # The data lives with the RDS instance; removing the seed resource
+        # (or the stack) must not reach into the database.
+        return {
+            "PhysicalResourceId": event.get("PhysicalResourceId", PHYSICAL_RESOURCE_ID)
+        }
+
     config = DatabaseConfig.from_env()
     if config.engine != "sqlserver":
         raise RuntimeError(
@@ -22,4 +36,14 @@ def handler(event, context):
     summary["upcoming_hearings"] = len(
         court_case_repository(config).upcoming_hearings()
     )
-    return summary
+    print(json.dumps(summary))
+
+    if "RequestType" not in event:
+        return summary
+    return {
+        "PhysicalResourceId": PHYSICAL_RESOURCE_ID,
+        "Data": {
+            "UpcomingHearings": str(summary["upcoming_hearings"]),
+            "RowCounts": json.dumps(summary["row_counts"]),
+        },
+    }
