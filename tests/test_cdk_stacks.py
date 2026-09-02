@@ -17,6 +17,7 @@ import cdk_stack as reminder_module
 import database_stack as database_module
 from cdk_stack import CourtReminderStack
 from database_stack import CourtDatabaseStack
+from github_stack import GithubDeployStack
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ENV = aws_cdk.Environment(account="123456789012", region="us-east-1")
@@ -163,3 +164,20 @@ def test_database_stack_rejects_nothing_but_exposes_engine_and_flags():
     assert CourtDatabaseStack(app, "A", local=True).engine == "postgres"
     assert CourtDatabaseStack(app, "B").engine == "sqlserver"
     assert database_module.CourtDatabaseStack(app, "C", local=False).local is False
+
+
+# ------------------------------------------------------- GitHub Actions role
+
+
+def test_github_role_can_assume_the_cdk_bootstrap_roles():
+    app = aws_cdk.App()
+    template = Template.from_stack(GithubDeployStack(app, "GithubActionStack"))
+    (policy,) = template.find_resources("AWS::IAM::Policy").values()
+    statements = policy["Properties"]["PolicyDocument"]["Statement"]
+    assume = [s for s in statements if s["Action"] == "sts:AssumeRole"]
+    assert len(assume) == 1
+    assert "cdk-hnb659fds-*" in json.dumps(assume[0]["Resource"])
+    # The role itself must still be assumable only from this repo's main branch.
+    (role,) = template.find_resources("AWS::IAM::Role").values()
+    trust = json.dumps(role["Properties"]["AssumeRolePolicyDocument"])
+    assert "repo:CivicTechAtlanta/proj-ga-court-reminders:ref:refs/heads/main" in trust

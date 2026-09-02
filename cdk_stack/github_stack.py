@@ -51,6 +51,26 @@ class GithubDeployStack(Stack):
             )
         )
 
+        # Let CDK use its bootstrap roles (lookup, deploy, file and image
+        # publishing) rather than this role's own credentials. Context lookups
+        # such as a VPC's availability zones need the lookup role; without
+        # this, synth fails with "not authorized to perform:
+        # ec2:DescribeAvailabilityZones". The default bootstrap qualifier is
+        # hnb659fds.
+        github_role.add_to_policy(
+            aws_iam.PolicyStatement(
+                actions=["sts:AssumeRole"],
+                resources=[
+                    self.format_arn(
+                        service="iam",
+                        region="",
+                        resource="role",
+                        resource_name="cdk-hnb659fds-*",
+                    )
+                ],
+            )
+        )
+
         # Output Role ARN to place in github secret: AWS_GITHUBACTIONROLE_ARN
         CfnOutput(
             self,
