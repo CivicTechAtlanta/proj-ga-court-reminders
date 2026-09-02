@@ -262,8 +262,9 @@ Manual deployment needs the AWS CLI and configured credentials. Do not set
 for Floci.
 
 The same two stacks deploy: `CourtDatabaseStack` becomes RDS SQL Server
-Express in an isolated-subnet VPC with generated credentials in Secrets
-Manager, and `CourtReminderStack` places the Lambdas in that VPC.
+Express (instance `courtbot-dev`) in an isolated-subnet VPC with generated
+credentials in Secrets Manager, and `CourtReminderStack` places the Lambdas
+in that VPC. The instance is not reachable from outside the VPC.
 
 Add project dependencies with `uv add <dependency>`, then run
 `make requirements` to refresh the exported deployment requirements.

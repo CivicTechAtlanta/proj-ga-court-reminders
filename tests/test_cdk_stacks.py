@@ -51,6 +51,7 @@ def test_aws_database_is_encrypted_private_sql_server_with_no_nat():
         "AWS::RDS::DBInstance",
         {
             "Engine": "sqlserver-ex",
+            "DBInstanceIdentifier": "courtbot-dev",
             "StorageEncrypted": True,
             "PubliclyAccessible": False,
             "DeletionProtection": False,
@@ -125,6 +126,8 @@ def test_local_database_is_postgres_with_plain_credentials_and_no_sg_lockdown():
     )
     database.resource_count_is("Custom::VpcRestrictDefaultSG", 0)
     database.resource_count_is("AWS::SecretsManager::SecretTargetAttachment", 0)
+    (instance,) = database.find_resources("AWS::RDS::DBInstance").values()
+    assert "DBInstanceIdentifier" not in instance["Properties"]
     (secret,) = database.find_resources("AWS::SecretsManager::Secret").values()
     rendered = json.dumps(secret["Properties"]["SecretString"])
     for fragment in ('"username":"court"', '"password":"court"', '"dbname":"courtdb"'):

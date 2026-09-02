@@ -90,6 +90,10 @@ class CourtDatabaseStack(Stack):
         self.database = aws_rds.DatabaseInstance(
             self,
             "CourtCaseDatabase",
+            # A readable name in the RDS console for the real deployment. Local
+            # Floci instances keep CloudFormation's generated identifier so
+            # the two environments stay distinguishable by name.
+            instance_identifier=None if local else "courtbot-dev",
             **_ENGINES[self.engine](),
             vpc=self.vpc,
             vpc_subnets=aws_ec2.SubnetSelection(
