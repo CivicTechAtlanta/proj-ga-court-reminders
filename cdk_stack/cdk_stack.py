@@ -35,10 +35,10 @@ class CourtReminderStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
         self._database = database
 
-        self._function("CourtBotMain", "main.py")
-        self._function("CourtBotMessageSender", "message_sender.py")
-        self._function("CourtBotMessageResponse", "message_response.py")
-        self._function("CourtBotMessageStatus", "message_status.py")
+        self._function("CourtBotMain", "main.py", timeout=Duration.minutes(15))
+        self._function("CourtBotMessageSender", "message_sender.py", timeout=Duration.minutes(15))
+        self._function("CourtBotMessageResponse", "message_response.py", timeout=Duration.minutes(15))
+        self._function("CourtBotMessageStatus", "message_status.py", timeout=Duration.minutes(15))
         self._seed_database()
 
     def _seed_database(self) -> None:
