@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from court_db import court_case_repository
-from court_db.postgres import PostgresCourtCaseRepository
+from court_db import DatabaseConfig, court_case_repository
+from court_db.postgres import PostgresCourtCaseRepository, open_connection
 
 pytestmark = pytest.mark.integration_court_db
 
@@ -37,7 +37,8 @@ def test_factory_defaults_to_the_local_postgres_db(repository):
 def test_upcoming_hearings_matches_the_canonical_query(repository):
     hearings = repository.upcoming_hearings(days_ahead=7)
 
-    with repository._driver_connect() as connection, connection.cursor() as cursor:
+    config = DatabaseConfig.from_env(environ={})
+    with open_connection(config) as connection, connection.cursor() as cursor:
         cursor.execute(CANONICAL_QUERY.read_text())
         canonical = cursor.fetchall()
 

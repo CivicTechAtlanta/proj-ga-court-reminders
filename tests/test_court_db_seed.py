@@ -5,7 +5,10 @@ from pathlib import Path
 import pytest
 
 from court_db import DatabaseConfig
-from court_db.seed import SQL_DIR, TABLES, load_fixtures, split_batches
+from court_db.seed import SEED_ROOT, TABLES, load_fixtures, split_batches
+
+SQL_DIR = SEED_ROOT / "sqlserver"
+POSTGRES_SQL_DIR = SEED_ROOT / "postgres"
 
 
 class FakeCursor:
@@ -116,8 +119,7 @@ def test_shipped_scripts_cover_every_table_and_isolate_the_function():
 
 
 def test_fixtures_match_the_postgres_seed_row_for_row():
-    repo_root = Path(__file__).resolve().parent.parent
-    postgres = (repo_root / "db" / "init" / "03-fixtures.sql").read_text()
+    postgres = (POSTGRES_SQL_DIR / "03-fixtures.sql").read_text()
     sqlserver = (Path(SQL_DIR) / "03-fixtures.sql").read_text()
 
     # Every phone number and case number seeded locally is seeded in AWS too.
@@ -153,6 +155,7 @@ def test_load_fixtures_creates_database_then_runs_scripts_in_order_and_commits()
         f"SELECT COUNT(*) FROM dbo.{table}" for table in TABLES
     ]
 
+    assert summary["engine"] == "sqlserver"
     assert summary["database"] == "courtdb"
     assert list(summary["scripts"]) == [
         "01-schema.sql",
@@ -174,3 +177,35 @@ def test_load_fixtures_rejects_unsafe_database_names():
     )
     with pytest.raises(ValueError):
         load_fixtures(config, connect=connect)
+
+
+def test_postgres_seed_runs_each_script_as_one_batch_without_creating_a_database():
+    connections, connect = fake_connect()
+    config = DatabaseConfig(
+        engine="postgres",
+        host="172.25.0.3",
+        port=7001,
+        database="courtdb",
+        user="courtadmin",
+        password="secret",
+    )
+
+    summary = load_fixtures(config, connect=connect)
+
+    (target,) = connections  # no master connection: courtdb already exists
+    assert target.database == "courtdb"
+    assert target.committed is True
+    assert summary["engine"] == "postgres"
+    assert summary["scripts"] == {
+        "01-schema.sql": 1,
+        "02-reference-data.sql": 1,
+        "03-fixtures.sql": 1,
+    }
+    schema = target.log[0]
+    assert "DROP SCHEMA IF EXISTS dbo CASCADE" in schema
+
+
+def test_postgres_scripts_have_no_psql_meta_commands():
+    for script in POSTGRES_SQL_DIR.glob("*.sql"):
+        for line in script.read_text().splitlines():
+            assert not line.lstrip().startswith("\\"), f"{script.name}: {line}"

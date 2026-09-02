@@ -1,5 +1,5 @@
 -- SQL Server schema for the court case database: the native form of the
--- Postgres translation in db/init/01-schema.sql (see ADR 002). Keep the two
+-- Postgres translation in seed/postgres/01-schema.sql (see ADR 002). Keep the two
 -- in step; the reminder query must run near-verbatim against both.
 --
 -- Rerunnable: everything it creates is dropped first, in dependency order.
@@ -63,7 +63,7 @@ CREATE TABLE dbo.tblCaseParty (
 
 -- No unique constraint on (PartyID, PhoneType, PhoneNumber) and no CHECK on
 -- PhoneType: prod data has duplicate rows and dirty type labels, and the
--- fixtures seed both on purpose (see db/init/01-schema.sql).
+-- fixtures seed both on purpose (see seed/postgres/01-schema.sql).
 CREATE TABLE dbo.tblPartyPhone (
     PartyPhoneID int IDENTITY(1,1) PRIMARY KEY,
     PartyID      int NOT NULL REFERENCES dbo.tblParty (PartyID),

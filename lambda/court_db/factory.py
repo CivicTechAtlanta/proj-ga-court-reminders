@@ -17,7 +17,7 @@ def court_case_repository(config: DatabaseConfig | None = None) -> CourtCaseRepo
 
     With no argument, configuration comes from the COURT_DB_* environment
     variables (local Docker Postgres by default; set COURT_DB_ENGINE and
-    COURT_DB_SECRET_NAME on the Lambda for RDS SQL Server).
+    COURT_DB_SECRET_ID on the Lambda for RDS SQL Server).
     """
     config = config or DatabaseConfig.from_env()
     try:

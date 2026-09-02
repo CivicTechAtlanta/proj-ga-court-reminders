@@ -1,4 +1,4 @@
--- Synthetic case data, row for row the same as db/init/03-fixtures.sql, which
+-- Synthetic case data, row for row the same as seed/postgres/03-fixtures.sql, which
 -- documents every scenario and the deliberately dirty data quality.
 -- Expected reminder-query result right after loading: exactly 11 rows.
 --

@@ -15,7 +15,8 @@ against instead of dates faked in-memory.
 ## Decision
 
 Run `postgres:17-alpine` via `docker-compose.yml`, seeded on first start by
-scripts in `db/init/` (the postgres image's `/docker-entrypoint-initdb.d`
+scripts in `lambda/court_db/seed/postgres/` (which also seed the RDS Postgres
+that `CourtDatabaseStack` deploys to Floci) (the postgres image's `/docker-entrypoint-initdb.d`
 mechanism — they execute only when the data volume is empty).
 
 Fidelity choices, so the prod query runs near-verbatim (see the translation in

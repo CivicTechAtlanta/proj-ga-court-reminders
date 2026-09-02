@@ -24,9 +24,20 @@ class FakeRepository:
         return [object()] * 11
 
 
+def cfn_event(request_type):
+    return {
+        "RequestType": request_type,
+        "ResponseURL": "https://cloudformation.example/response",
+        "StackId": "stack-1",
+        "RequestId": "req-1",
+        "LogicalResourceId": "CourtDatabaseSeed",
+        "ResourceProperties": {"SeedVersion": "abc"},
+    }
+
+
 @pytest.fixture()
 def seeded(monkeypatch):
-    calls = []
+    calls = {"loads": [], "responses": []}
     monkeypatch.setattr(
         database_loader.DatabaseConfig, "from_env", staticmethod(sqlserver_config)
     )
@@ -34,51 +45,71 @@ def seeded(monkeypatch):
         database_loader,
         "load_fixtures",
         lambda config: (
-            calls.append(config)
+            calls["loads"].append(config)
             or {"database": "courtdb", "row_counts": {"tblCase": 11}}
         ),
     )
     monkeypatch.setattr(
         database_loader, "court_case_repository", lambda config: FakeRepository()
     )
+    monkeypatch.setattr(
+        database_loader,
+        "_send_response",
+        lambda url, body: calls["responses"].append((url, body)),
+    )
     return calls
 
 
-def test_create_seeds_and_reports_data_for_cloudformation(seeded):
-    response = database_loader.handler({"RequestType": "Create"}, None)
+def test_create_seeds_and_answers_cloudformation_with_data(seeded):
+    database_loader.handler(cfn_event("Create"), None)
 
-    assert len(seeded) == 1
-    assert response["PhysicalResourceId"] == "court-database-seed"
-    assert response["Data"]["UpcomingHearings"] == "11"
-    assert json.loads(response["Data"]["RowCounts"]) == {"tblCase": 11}
+    assert len(seeded["loads"]) == 1
+    (url, body) = seeded["responses"][0]
+    assert url == "https://cloudformation.example/response"
+    assert body["Status"] == "SUCCESS"
+    assert body["PhysicalResourceId"] == "court-database-seed"
+    assert body["StackId"] == "stack-1"
+    assert body["RequestId"] == "req-1"
+    assert body["LogicalResourceId"] == "CourtDatabaseSeed"
+    assert body["Data"]["UpcomingHearings"] == "11"
+    assert json.loads(body["Data"]["RowCounts"]) == {"tblCase": 11}
 
 
 def test_update_reseeds(seeded):
     database_loader.handler(
-        {"RequestType": "Update", "PhysicalResourceId": "court-database-seed"}, None
+        {**cfn_event("Update"), "PhysicalResourceId": "court-database-seed"}, None
     )
-    assert len(seeded) == 1
+    assert len(seeded["loads"]) == 1
+    assert seeded["responses"][0][1]["Status"] == "SUCCESS"
 
 
-def test_delete_never_touches_the_database(seeded):
-    response = database_loader.handler(
-        {"RequestType": "Delete", "PhysicalResourceId": "court-database-seed"}, None
+def test_delete_answers_without_touching_the_database(seeded):
+    database_loader.handler(
+        {**cfn_event("Delete"), "PhysicalResourceId": "court-database-seed"}, None
     )
-    assert seeded == []
-    assert response == {"PhysicalResourceId": "court-database-seed"}
+    assert seeded["loads"] == []
+    (_, body) = seeded["responses"][0]
+    assert body["Status"] == "SUCCESS"
+    assert body["PhysicalResourceId"] == "court-database-seed"
+    assert body["Data"] == {}
+
+
+def test_failure_is_reported_to_cloudformation_then_raised(seeded, monkeypatch):
+    def broken(config):
+        raise RuntimeError("cannot connect")
+
+    monkeypatch.setattr(database_loader, "load_fixtures", broken)
+
+    with pytest.raises(RuntimeError, match="cannot connect"):
+        database_loader.handler(cfn_event("Create"), None)
+
+    (_, body) = seeded["responses"][0]
+    assert body["Status"] == "FAILED"
+    assert "cannot connect" in body["Reason"]
 
 
 def test_direct_invoke_returns_the_summary(seeded):
     summary = database_loader.handler({}, None)
     assert summary["upcoming_hearings"] == 11
     assert summary["row_counts"] == {"tblCase": 11}
-
-
-def test_refuses_non_sqlserver_engines(monkeypatch):
-    monkeypatch.setattr(
-        database_loader.DatabaseConfig,
-        "from_env",
-        staticmethod(lambda: DatabaseConfig("postgres", "h", 5432, "d", "u", "p")),
-    )
-    with pytest.raises(RuntimeError, match="SQL Server only"):
-        database_loader.handler({"RequestType": "Create"}, None)
+    assert seeded["responses"] == []

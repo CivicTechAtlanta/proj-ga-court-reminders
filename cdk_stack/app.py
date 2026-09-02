@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """CDK app entry point.
 
-Context key `court_db` chooses the court database wiring:
-  aws   (default) deploy CourtDatabaseStack and connect the Lambdas to it
-  local           Lambdas only, for the Floci emulator; the court_db wrapper
-                  falls back to the Docker Postgres fixtures
+Context key `court_db` chooses how the court database stack is built:
+  aws   (default) RDS SQL Server Express, the production-shaped engine
+  local           RDS Postgres for the Floci emulator, which runs real
+                  Postgres containers but cannot start SQL Server
+Both modes deploy CourtDatabaseStack, seed it during the deploy, and
+connect every Lambda to it through Secrets Manager. Values crossing from
+the database stack to the Lambda stack use CloudFormation exports
+(cdk.json sets defaultCrossStackReferences to "strong") because Floci does
+not resolve the weak Fn::GetStackOutput form.
 """
 
 import os
@@ -28,9 +33,12 @@ if court_db not in {"aws", "local"}:
 
 GithubDeployStack(app, "GithubActionStack")
 
-database = None
-if court_db == "aws":
-    database = CourtDatabaseStack(app, "CourtDatabaseStack", env=environment)
+database = CourtDatabaseStack(
+    app,
+    "CourtDatabaseStack",
+    local=court_db == "local",
+    env=environment,
+)
 
 CourtReminderStack(app, "CourtReminderStack", database=database, env=environment)
 

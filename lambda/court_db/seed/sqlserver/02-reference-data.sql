@@ -1,5 +1,5 @@
 -- Stable reference data: courtroom lookup codes and event types.
--- Mirrors db/init/02-reference-data.sql.
+-- Mirrors seed/postgres/02-reference-data.sql.
 
 INSERT INTO dbo.tblLookup (LookupType, LookupCode, LookupDescription) VALUES
     ('CourtRoom', '1A',  'Courtroom 1A - Main Courthouse, Floor 1'),

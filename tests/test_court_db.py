@@ -125,7 +125,7 @@ def test_config_defaults_match_local_compose():
 def test_config_prefers_secrets_manager_values():
     environ = {
         "COURT_DB_ENGINE": "sqlserver",
-        "COURT_DB_SECRET_NAME": "CourtDatabaseSecret",
+        "COURT_DB_SECRET_ID": "CourtDatabaseSecret",
     }
     secret = {
         "host": "db.internal.example",

@@ -1,18 +1,24 @@
-"""Load the court case schema and fixtures into a SQL Server database.
+"""Load the court case schema and fixtures into a database.
 
-The T-SQL under court_db/seed/sqlserver/ is the native counterpart of the
-Postgres scripts in db/init/ that seed the local Docker database on first
-start. Running this against the AWS dev instance gives it the same data.
+The scripts under court_db/seed/<engine>/ carry the same data for each
+engine: Postgres for the docker-compose database (which also runs them
+itself on first start) and the Floci-hosted RDS instance, SQL Server for
+RDS in AWS. The seed Lambda runs this during `cdk deploy`.
 """
 
 import re
 from dataclasses import replace
 from pathlib import Path
 
-from .sqlserver import open_connection
+from . import postgres, sqlserver
 
 
-SQL_DIR = Path(__file__).parent / "seed" / "sqlserver"
+SEED_ROOT = Path(__file__).parent / "seed"
+
+_ENGINES = {
+    "postgres": postgres.open_connection,
+    "sqlserver": sqlserver.open_connection,
+}
 
 # Tables in load order; counted after loading for the summary.
 TABLES = [
@@ -31,26 +37,33 @@ _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def split_batches(sql: str) -> list[str]:
-    """Split a T-SQL script on GO separator lines, dropping empty batches.
+    """Split a script on T-SQL GO separator lines, dropping empty batches.
 
-    GO is a client-side convention, not T-SQL, so drivers reject it; each
-    batch must be sent on its own.
+    GO is a client-side convention drivers reject, so each batch must be
+    sent on its own. Postgres scripts have no GO lines and run as one batch.
     """
     return [batch.strip() for batch in _GO_LINE.split(sql) if batch.strip()]
 
 
-def load_fixtures(config, sql_dir=SQL_DIR, connect=open_connection) -> dict:
-    """Create the database if needed, then run every script in sql_dir in name order.
+def load_fixtures(config, sql_dir=None, connect=None) -> dict:
+    """Run every seed script for the configured engine, in name order.
 
-    Rerunnable: the schema script drops and recreates everything, and the
+    Rerunnable: the schema scripts drop and recreate everything, and the
     fixtures re-anchor their dates to the server's current date.
     """
+    if config.engine not in _ENGINES:
+        raise ValueError(f"No seed scripts for engine {config.engine!r}")
     if not _IDENTIFIER.match(config.database):
         raise ValueError(f"Unsafe database name {config.database!r}")
+    sql_dir = Path(sql_dir) if sql_dir else SEED_ROOT / config.engine
+    connect = connect or _ENGINES[config.engine]
 
-    _ensure_database(config, connect)
+    if config.engine == "sqlserver":
+        # RDS SQL Server starts with no user database (CDK cannot name one),
+        # whereas Postgres gets courtdb from database_name / POSTGRES_DB.
+        _ensure_sqlserver_database(config, connect)
 
-    scripts = sorted(Path(sql_dir).glob("*.sql"))
+    scripts = sorted(sql_dir.glob("*.sql"))
     executed = {}
     with connect(config) as connection:
         with connection.cursor() as cursor:
@@ -63,13 +76,14 @@ def load_fixtures(config, sql_dir=SQL_DIR, connect=open_connection) -> dict:
         connection.commit()
 
     return {
+        "engine": config.engine,
         "database": config.database,
         "scripts": executed,
         "row_counts": counts,
     }
 
 
-def _ensure_database(config, connect):
+def _ensure_sqlserver_database(config, connect):
     # CREATE DATABASE cannot run inside the implicit transaction the driver
     # opens, so this one statement runs in autocommit mode against master.
     connection = connect(replace(config, database="master"))

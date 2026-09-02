@@ -52,10 +52,31 @@ ORDER BY EventDateTime, CaseNumber
 )
 
 
+def open_connection(config):
+    """Open a DB-API connection to the Postgres described by config."""
+    try:
+        import psycopg
+    except ImportError as exc:
+        raise RuntimeError(
+            f"The psycopg driver could not be imported: {exc}. It is either "
+            "missing from the bundle (lambda/requirements.txt needs "
+            "psycopg[binary]) or built for a different CPU architecture "
+            "than the one running this code."
+        ) from exc
+
+    return psycopg.connect(
+        host=config.host,
+        port=config.port,
+        dbname=config.database,
+        user=config.user,
+        password=config.password,
+    )
+
+
 class PostgresCourtCaseRepository(CourtCaseRepository):
     def __init__(self, config, connect=None):
         self._config = config
-        self._connect = connect or self._driver_connect
+        self._connect = connect or (lambda: open_connection(self._config))
 
     def ping(self) -> bool:
         with self._connect() as connection, connection.cursor() as cursor:
@@ -72,22 +93,3 @@ class PostgresCourtCaseRepository(CourtCaseRepository):
         with self._connect() as connection, connection.cursor() as cursor:
             cursor.execute(sql, params)
             return [Hearing.from_row(row) for row in cursor.fetchall()]
-
-    def _driver_connect(self):
-        try:
-            import psycopg
-        except ImportError as exc:
-            raise RuntimeError(
-                f"The psycopg driver could not be imported: {exc}. It is either "
-                "missing from the bundle (lambda/requirements.txt needs "
-                "psycopg[binary]) or built for a different CPU architecture "
-                "than the one running this code."
-            ) from exc
-
-        return psycopg.connect(
-            host=self._config.host,
-            port=self._config.port,
-            dbname=self._config.database,
-            user=self._config.user,
-            password=self._config.password,
-        )

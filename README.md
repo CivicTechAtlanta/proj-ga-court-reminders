@@ -134,11 +134,13 @@ make local-start
 ```
 
 This one command verifies the required tools, installs project dependencies,
-starts Floci and the fixture court database, bootstraps Floci, and deploys the
-CDK-managed Lambda functions using dummy credentials. Lambdas running in Floci
-reach the fixture database as `db:5432` on the project's Docker network; the
-CDK stack sets that up through the `COURT_DB_*` environment variables read by
-the `court_db` wrapper under `lambda/`.
+starts Floci and the fixture court database, bootstraps Floci, and deploys both
+CDK stacks using dummy credentials. `CourtDatabaseStack` deploys to Floci as an
+RDS Postgres instance (Floci runs real Postgres containers but cannot start SQL
+Server), seeded during the deploy with the same scripts that seed the fixture
+database, and the Lambdas connect to it through Secrets Manager exactly as
+they do in AWS. The compose `db` service remains the quick way to inspect the
+fixtures with `make db-psql` or a GUI.
 
 ### 3. Develop Lambda functions
 
@@ -158,8 +160,8 @@ make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
 ```
 
 The invocation response and any function error are printed in the current
-terminal. `CourtBotMain` queries the fixture database and returns the hearings
-due for a reminder; expect 11 right after `make local-start` or `make db-reset`.
+terminal. `CourtBotMain` queries the Floci-hosted database and returns the
+hearings due for a reminder; expect 11 right after `make local-start`.
 
 `EVENT` is optional for Lambdas that accept an empty event. For example:
 
@@ -232,17 +234,17 @@ it only for Floci.
 Add project dependencies with `uv add <dependency>`, then run
 `make requirements` to refresh the exported deployment requirements.
 
-### Seeding the AWS dev database
+### Seeding the deployed database
 
-The RDS SQL Server instance from `CourtDatabaseStack` is seeded during
-`cdk deploy` with the same schema and fixtures as the local Docker database.
-`CourtReminderStack` runs the `CourtBotDatabaseLoader` Lambda as a
-CloudFormation custom resource (the pattern from AWS's
+Both deployments seed their database during `cdk deploy`: RDS SQL Server
+Express in AWS, RDS Postgres on Floci. `CourtReminderStack` runs the
+`CourtBotDatabaseLoader` Lambda as a CloudFormation custom resource (the
+pattern from AWS's
 [Use AWS CDK to initialize Amazon RDS instances](https://aws.amazon.com/blogs/infrastructure-and-automation/use-aws-cdk-to-initialize-amazon-rds-instances/)),
-because the instance is only reachable from inside its VPC. It creates the
-`courtdb` database if needed, then drops and reloads every court table from
-the T-SQL under `lambda/court_db/seed/sqlserver/`, the native counterpart of
-`db/init/`.
+because the instance is only reachable from inside its VPC. It drops and
+reloads every court table from the scripts under `lambda/court_db/seed/`, one
+directory per engine with row-for-row the same data; the Postgres scripts
+also seed the compose `db` service on its first start.
 
 The seed re-runs automatically when those scripts change. Fixture dates
 anchor to the server's date at seeding time, so to re-anchor them without
