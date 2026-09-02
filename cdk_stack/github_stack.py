@@ -39,6 +39,7 @@ class GithubDeployStack(Stack):
             aws_iam.PolicyStatement(
                 resources=["*"],
                 actions=[
+                    "ec2:DescribeAvailabilityZones",
                     "ssm:GetParameter",
                     "cloudFormation:*",
                     "iam:PassRole",
