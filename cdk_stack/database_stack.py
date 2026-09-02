@@ -58,6 +58,12 @@ class CourtDatabaseStack(Stack):
             "SecretsManagerEndpoint",
             service=aws_ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
         )
+        # The seed Lambda answers CloudFormation by PUTting to a pre-signed S3
+        # URL. Without a route to S3 that answer never arrives and the stack
+        # hangs for an hour, then rolls back. Gateway endpoints are free.
+        self.vpc.add_gateway_endpoint(
+            "S3Endpoint", service=aws_ec2.GatewayVpcEndpointAwsService.S3
+        )
 
         # Anything that should talk to the database joins this group. Owning
         # it here keeps the security-group reference one-directional between

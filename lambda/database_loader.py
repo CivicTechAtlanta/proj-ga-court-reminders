@@ -29,6 +29,12 @@ def handler(event, context):
     if "ResponseURL" not in event:
         return _seed()
 
+    # Logged so a resource stuck waiting on CloudFormation can be answered by
+    # hand; the URL is a short-lived, write-only pre-signed S3 URL.
+    print(
+        f"CloudFormation {event['RequestType']} request {event['RequestId']} "
+        f"for {event['LogicalResourceId']}; ResponseURL={event['ResponseURL']}"
+    )
     try:
         data = {} if event["RequestType"] == "Delete" else _seed_data()
     except Exception as exc:  # noqa: BLE001 - CloudFormation must hear back
