@@ -33,7 +33,9 @@ def main():
             "ResourceNotFoundException",
         }:
             raise
-        subprocess.run(["cdk", "bootstrap"], check=True)
+        # Same context as the deploy, so bootstrap does not synthesize the
+        # database stack (and cache dummy-account lookups) for Floci
+        subprocess.run(["cdk", "bootstrap", "--context", "court_db=local"], check=True)
         return
 
     print("Floci CDK bootstrap already exists; skipping")

@@ -58,8 +58,10 @@ def open_connection(config):
         import pymssql
     except ImportError as exc:
         raise RuntimeError(
-            "The SQL Server driver is not installed. Add pymssql to "
-            "lambda/requirements.txt before deploying against RDS."
+            f"The pymssql driver could not be imported: {exc}. It is either "
+            "missing from the bundle (lambda/requirements.txt needs pymssql) "
+            "or built for a different CPU architecture than the one running "
+            "this code."
         ) from exc
 
     return pymssql.connect(

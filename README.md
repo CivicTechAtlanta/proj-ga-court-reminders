@@ -62,8 +62,10 @@ sudo usermod -aG docker "$USER"
 Membership in the `docker` group grants root-level access. Rootless Docker and
 other non-default daemon sockets are not currently verified.
 
-The project currently uses Lambda's default x86-64 architecture. ARM64 Linux
-hosts may require x86-64 container emulation and are not yet verified.
+In AWS the Lambdas use Lambda's default x86-64 architecture. The local Floci
+deployment builds them for the host's own architecture instead (ARM64 on Apple
+silicon and ARM64 Linux, x86-64 elsewhere), because Floci runs Lambda
+containers natively and the bundled database drivers must match.
 
 #### macOS container setup
 
@@ -132,9 +134,11 @@ make local-start
 ```
 
 This one command verifies the required tools, installs project dependencies,
-starts and bootstraps Floci, and deploys the CDK-managed Lambda functions using
-dummy credentials. Start the optional fixture database separately with
-`make db-up` when a Lambda needs court data.
+starts Floci and the fixture court database, bootstraps Floci, and deploys the
+CDK-managed Lambda functions using dummy credentials. Lambdas running in Floci
+reach the fixture database as `db:5432` on the project's Docker network; the
+CDK stack sets that up through the `COURT_DB_*` environment variables read by
+the `court_db` wrapper under `lambda/`.
 
 ### 3. Develop Lambda functions
 
@@ -154,7 +158,8 @@ make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
 ```
 
 The invocation response and any function error are printed in the current
-terminal.
+terminal. `CourtBotMain` queries the fixture database and returns the hearings
+due for a reminder; expect 11 right after `make local-start` or `make db-reset`.
 
 `EVENT` is optional for Lambdas that accept an empty event. For example:
 

@@ -8,7 +8,9 @@ import subprocess
 
 
 PROJECT_NETWORK = "court-reminders_default"
-LAMBDA_PREFIX = "floci-CourtReminderStack-"
+# Floci names Lambda and custom-resource helpers after the CDK stack;
+# match every stack in this project, including any deployed by mistake.
+LAMBDA_PREFIX = "floci-Court"
 FLOCI_HELPERS = {"floci-ecr-registry"}
 
 

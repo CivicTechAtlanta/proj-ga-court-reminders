@@ -78,8 +78,10 @@ class PostgresCourtCaseRepository(CourtCaseRepository):
             import psycopg
         except ImportError as exc:
             raise RuntimeError(
-                "The Postgres driver is not installed. "
-                "Run: uv add --dev 'psycopg[binary]'"
+                f"The psycopg driver could not be imported: {exc}. It is either "
+                "missing from the bundle (lambda/requirements.txt needs "
+                "psycopg[binary]) or built for a different CPU architecture "
+                "than the one running this code."
             ) from exc
 
         return psycopg.connect(

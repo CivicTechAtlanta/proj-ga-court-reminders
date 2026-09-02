@@ -80,9 +80,9 @@ doctor:
 	@docker info >/dev/null 2>&1 && echo "ok: Docker daemon" || { echo "Docker daemon unavailable. Start Docker Desktop, Docker Engine, or Colima."; exit 1; }
 	@command -v cdk >/dev/null && echo "ok: AWS CDK CLI" || { echo "missing: AWS CDK CLI"; exit 1; }
 
-## Start the local AWS emulator
+## Start the local AWS emulator and the fixture database it serves Lambdas from
 local-up: doctor
-	docker compose up --detach --wait floci
+	docker compose up --detach --wait floci db
 
 ## Bootstrap Floci once; repeated CDK bootstraps are not emulator-safe
 local-bootstrap:
