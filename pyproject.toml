@@ -19,6 +19,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "psycopg[binary]>=3.2",
+    "pymssql>=2.3,<3",
     "pytest",
     "ruff",
 ]

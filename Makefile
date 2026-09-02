@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup synth db-up db-down db-reset db-psql db-verify lint format \
+.PHONY: help setup synth db-up db-down db-reset db-psql db-verify aws-db-load lint format \
 	requirements doctor local-up local-deploy local-start local-invoke \
 	local-bootstrap local-down local-reset
 
@@ -36,6 +36,10 @@ db-psql:
 ## Run the seven-day fixture query; expect 11 rows after a reset
 db-verify:
 	docker compose exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1' < db/queries/next_week_hearings.sql
+
+## Load the AWS dev database with the local fixtures (needs AWS credentials)
+aws-db-load:
+	uv run --with boto3==1.40.3 python scripts/load_aws_db.py
 
 ## Run the repository Ruff checks
 lint:

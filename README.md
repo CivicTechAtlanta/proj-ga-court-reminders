@@ -226,3 +226,20 @@ it only for Floci.
 
 Add project dependencies with `uv add <dependency>`, then run
 `make requirements` to refresh the exported deployment requirements.
+
+### Load the AWS dev database
+
+The RDS SQL Server instance from `CourtDatabaseStack` starts empty. Give it
+the same schema and fixtures as the local Docker database:
+
+```bash
+make aws-db-load
+```
+
+This invokes the `CourtBotDatabaseLoader` Lambda, which runs inside the
+database VPC (a laptop cannot reach the instance directly). It creates the
+`courtdb` database if needed, then drops and reloads every court table from
+the T-SQL under `lambda/court_db/seed/sqlserver/`, the native counterpart of
+`db/init/`. Fixture dates anchor to the server's current date, so rerun it to
+re-anchor them. The result reports row counts and the reminder-query count,
+which should be 11 right after loading.

@@ -1,5 +1,5 @@
 from constructs import Construct
-from aws_cdk import Stack, aws_ec2, aws_lambda
+from aws_cdk import Duration, Stack, aws_ec2, aws_lambda
 from aws_cdk import aws_lambda_python_alpha as lp
 
 from database_stack import CourtDatabaseStack
@@ -28,7 +28,17 @@ class CourtReminderStack(Stack):
         self._function("CourtBotMessageResponse", "message_response.py")
         self._function("CourtBotMessageStatus", "message_status.py")
 
-    def _function(self, construct_id: str, index: str) -> lp.PythonFunction:
+        if database is not None:
+            # Seeds the dev database from inside its VPC; see make aws-db-load
+            self._function(
+                "CourtBotDatabaseLoader",
+                "database_loader.py",
+                timeout=Duration.minutes(5),
+            )
+
+    def _function(
+        self, construct_id: str, index: str, **overrides
+    ) -> lp.PythonFunction:
         function = lp.PythonFunction(
             self,
             construct_id,
@@ -37,6 +47,7 @@ class CourtReminderStack(Stack):
             index=index,
             handler="handler",
             **self._database_placement(),
+            **overrides,
         )
         if self._database is not None:
             self._database.database.secret.grant_read(function)
@@ -54,6 +65,8 @@ class CourtReminderStack(Stack):
             "security_groups": [self._database.client_security_group],
             "environment": {
                 "COURT_DB_ENGINE": "sqlserver",
+                # SQL Server secrets carry no dbname; the loader creates this
+                "COURT_DB_NAME": "courtdb",
                 "COURT_DB_SECRET_NAME": self._database.database.secret.secret_name,
             },
         }

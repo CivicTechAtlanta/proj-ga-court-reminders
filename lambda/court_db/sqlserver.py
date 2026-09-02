@@ -52,10 +52,29 @@ ORDER BY EventDateTime, CaseNumber
 )
 
 
+def open_connection(config):
+    """Open a DB-API connection to the SQL Server described by config."""
+    try:
+        import pymssql
+    except ImportError as exc:
+        raise RuntimeError(
+            "The SQL Server driver is not installed. Add pymssql to "
+            "lambda/requirements.txt before deploying against RDS."
+        ) from exc
+
+    return pymssql.connect(
+        server=config.host,
+        port=str(config.port),
+        database=config.database,
+        user=config.user,
+        password=config.password,
+    )
+
+
 class SqlServerCourtCaseRepository(CourtCaseRepository):
     def __init__(self, config, connect=None):
         self._config = config
-        self._connect = connect or self._driver_connect
+        self._connect = connect or (lambda: open_connection(self._config))
 
     def ping(self) -> bool:
         with self._connect() as connection, connection.cursor() as cursor:
@@ -72,20 +91,3 @@ class SqlServerCourtCaseRepository(CourtCaseRepository):
         with self._connect() as connection, connection.cursor() as cursor:
             cursor.execute(sql, params)
             return [Hearing.from_row(row) for row in cursor.fetchall()]
-
-    def _driver_connect(self):
-        try:
-            import pymssql
-        except ImportError as exc:
-            raise RuntimeError(
-                "The SQL Server driver is not installed. Add pymssql to the "
-                "lambda dependencies before deploying against RDS."
-            ) from exc
-
-        return pymssql.connect(
-            server=self._config.host,
-            port=str(self._config.port),
-            database=self._config.database,
-            user=self._config.user,
-            password=self._config.password,
-        )
