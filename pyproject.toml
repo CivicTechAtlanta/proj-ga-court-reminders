@@ -18,6 +18,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "boto3>=1.40.3",
     "psycopg[binary]>=3.2",
     "pymssql>=2.3,<3",
     "pytest",

@@ -65,3 +65,13 @@ def test_hearings_for_case_returns_all_dates_for_one_case(repository):
 
     assert hearings
     assert {hearing.case_number for hearing in hearings} == {case_number}
+
+
+def test_hearings_for_case_requires_an_exact_match_on_postgres(repository):
+    # Fixture case 3 is stored with a trailing space. Postgres compares text
+    # byte for byte; SQL Server ignores trailing spaces in `=`, so the same
+    # lookup matches there (see test_court_db_seed_integration.py).
+    assert repository.hearings_for_case("CR-2026-000103") == []
+    hearings = repository.hearings_for_case("CR-2026-000103 ")
+    assert len(hearings) == 1
+    assert hearings[0].phone_type == "HOME"

@@ -190,3 +190,36 @@ def test_hearings_for_case_filters_by_case_number(repository_class):
     (sql, params) = connection.cursor_used.executed[0]
     assert params == {"case_number": "24-CR-00042"}
     assert "CaseNumber = %(case_number)s" in sql
+
+
+def test_config_falls_back_to_env_for_fields_the_secret_lacks():
+    # RDS SQL Server secrets have no dbname (CDK cannot name the database for
+    # that engine), so COURT_DB_NAME must fill it in.
+    environ = {
+        "COURT_DB_ENGINE": "sqlserver",
+        "COURT_DB_NAME": "courtdb",
+        "COURT_DB_SECRET_ID": "arn:aws:secretsmanager:us-east-1:1:secret:x",
+    }
+    secret = {
+        "host": "db.internal",
+        "port": "1433",
+        "username": "courtadmin",
+        "password": "p",
+    }
+
+    config = DatabaseConfig.from_env(environ=environ, secret_loader=lambda name: secret)
+
+    assert (config.host, config.port, config.database, config.user) == (
+        "db.internal",
+        1433,
+        "courtdb",
+        "courtadmin",
+    )
+
+
+def test_config_ignores_the_secret_loader_when_no_secret_is_configured():
+    def explode(name):
+        raise AssertionError("secret loader must not be called")
+
+    config = DatabaseConfig.from_env(environ={}, secret_loader=explode)
+    assert config.host == "localhost"

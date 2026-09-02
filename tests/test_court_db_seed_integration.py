@@ -78,3 +78,11 @@ def test_sqlserver_matches_local_postgres(sqlserver_config):
     assert sorted(
         map(key, SqlServerCourtCaseRepository(config).upcoming_hearings())
     ) == sorted(map(key, postgres.upcoming_hearings()))
+
+
+def test_sqlserver_ignores_trailing_spaces_in_case_number_lookups(sqlserver_config):
+    config, _ = sqlserver_config
+    repository = SqlServerCourtCaseRepository(config)
+    # Both spellings match on SQL Server; only the padded one does on Postgres.
+    assert len(repository.hearings_for_case("CR-2026-000103")) == 1
+    assert len(repository.hearings_for_case("CR-2026-000103 ")) == 1

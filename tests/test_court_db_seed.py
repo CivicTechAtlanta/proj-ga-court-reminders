@@ -209,3 +209,10 @@ def test_postgres_scripts_have_no_psql_meta_commands():
     for script in POSTGRES_SQL_DIR.glob("*.sql"):
         for line in script.read_text().splitlines():
             assert not line.lstrip().startswith("\\"), f"{script.name}: {line}"
+
+
+def test_postgres_scripts_cover_every_table():
+    schema = (POSTGRES_SQL_DIR / "01-schema.sql").read_text()
+    for table in TABLES:
+        assert f"CREATE TABLE {table} (" in schema, table
+    assert "CREATE FUNCTION fnGetLookupDescription" in schema

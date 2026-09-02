@@ -113,3 +113,35 @@ def test_direct_invoke_returns_the_summary(seeded):
     assert summary["upcoming_hearings"] == 11
     assert summary["row_counts"] == {"tblCase": 11}
     assert seeded["responses"] == []
+
+
+def test_send_response_puts_json_to_the_response_url():
+    import json as _json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    received = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_PUT(self):
+            length = int(self.headers["Content-Length"])
+            received["body"] = _json.loads(self.rfile.read(length))
+            received["content_type"] = self.headers.get("Content-Type")
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/response?token=abc"
+        database_loader._send_response(url, {"Status": "SUCCESS", "Data": {"A": "1"}})
+    finally:
+        server.shutdown()
+
+    assert received["body"] == {"Status": "SUCCESS", "Data": {"A": "1"}}
+    # S3 pre-signed URLs reject a Content-Type that was not part of the signature.
+    assert received["content_type"] == ""
