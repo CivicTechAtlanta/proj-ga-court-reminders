@@ -2,85 +2,43 @@
 
 Lambda functions that find upcoming court hearings and send SMS reminders.
 
-## Local development and testing
+Everything runs locally without an AWS account: the Lambdas run in
+[Floci](https://floci.io), a free AWS emulator, against a Postgres database that
+Floci hosts and seeds with realistic court fixtures. The same CDK code deploys
+to real AWS with RDS SQL Server.
 
-The local stack uses free tooling to run AWS Lambda emulation. It does not
-require an AWS account or AWS credentials.
+## Getting started
 
-### 1. Prerequisites
+Follow these steps in order on a fresh machine. Steps 1 and 2 install tools;
+step 4 starts everything with one command.
 
-#### Tools required on every platform
+### Step 1: Install the tools (every platform)
 
-- [Git](https://git-scm.com/downloads)
-- GNU Make, available as `make` through Xcode Command Line Tools on macOS (should already be available) or
-  your Linux package manager
-- [uv](https://docs.astral.sh/uv/getting-started/installation/)
-- [Node.js](https://nodejs.org/en/download) 22 or 24 LTS (or use a version manager like [mise](https://mise.jdx.dev/))
-- [AWS CDK CLI](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html), installed after Node.js:
+| Tool | Install |
+|---|---|
+| [Git](https://git-scm.com/downloads) | package manager or installer |
+| GNU Make | macOS: included with Xcode Command Line Tools (`xcode-select --install`). Linux: your package manager |
+| [uv](https://docs.astral.sh/uv/getting-started/installation/) | Python package manager; installs Python itself if needed |
+| [Node.js](https://nodejs.org/en/download) 22 or 24 LTS | installer, or a version manager such as [mise](https://mise.jdx.dev/) |
+| [AWS CDK CLI](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html) | after Node.js, run the command below |
 
 ```bash
 npm install --global aws-cdk
 ```
 
-The project also needs three container components: the `docker` command, the
-`docker compose` subcommand, and a running container engine. Choose the setup
-for your operating system below. You do not need both Docker Desktop and Colima.
+### Step 2: Install a container engine
 
-#### Linux container setup
+The project needs the `docker` command, the `docker compose` subcommand, and a
+running container engine. Pick one option for your operating system; you do
+not need more than one.
 
-The standard path assumes a distribution supported by Docker Engine, normally
-Ubuntu (or Ubuntu-based like [Pop!_OS](https://system76.com/pop)), Debian, Fedora, RHEL, or CentOS.
-The `systemctl` command below applies to systemd-based distributions.
-Use your distribution's service manager otherwise.
+#### macOS (Intel or Apple silicon)
 
-Choose one option:
-
-- **Docker Engine:** This is the standard Linux option. Follow the
-  [installation guide](https://docs.docker.com/engine/install/) for your Linux
-  distribution and install the
-  [Compose plugin](https://docs.docker.com/compose/install/linux/). Start the
-  service if the installer did not start it automatically:
-
-```bash
-sudo systemctl enable --now docker
-```
-
-- **Docker Desktop:** Install
-  [Docker Desktop for Linux](https://docs.docker.com/desktop/setup/install/linux/)
-  if you prefer a GUI. It includes the Docker CLI, Compose, and container engine,
-  but currently requires x86-64 Linux, systemd, and KVM virtualization.
-
-The project Makefile runs Docker without `sudo`. Docker Engine users whose
-account cannot access Docker should follow Docker's
-[Linux post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/)
-and then log out and back in:
-
-```bash
-sudo usermod -aG docker "$USER"
-```
-
-Membership in the `docker` group grants root-level access. Rootless Docker and
-other non-default daemon sockets are not currently verified.
-
-In AWS the Lambdas use Lambda's default x86-64 architecture. The local Floci
-deployment builds them for the host's own architecture instead (ARM64 on Apple
-silicon and ARM64 Linux, x86-64 elsewhere), because Floci runs Lambda
-containers natively and the bundled database drivers must match.
-
-#### macOS container setup
-
-These instructions support both Intel and Apple silicon. Colima requires macOS
-13 or newer; Docker Desktop users should confirm the supported macOS versions
-on its linked installation page.
-
-Choose one option:
-
-- **Docker Desktop:** This is the simplest GUI-based option for a new developer.
-  Install [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/),
-  open the application, and wait until it reports that Docker is running. It
-  includes the Docker CLI, Compose, and container engine.
-- **Colima:** This is a lightweight command-line alternative to Docker Desktop.
-  Install [Homebrew](https://brew.sh/) first, then run:
+- **Docker Desktop** (simplest): install
+  [Docker Desktop for Mac](https://docs.docker.com/desktop/setup/install/mac-install/),
+  open it, and wait until it reports that Docker is running.
+- **Colima** (lightweight, command-line; needs macOS 13+): install
+  [Homebrew](https://brew.sh/), then:
 
 ```bash
 brew install colima docker docker-compose
@@ -90,42 +48,60 @@ ln -sfn "$(brew --prefix)/opt/docker-compose/bin/docker-compose" \
 colima start
 ```
 
-Colima must be running while developing. Start it with `colima start` and stop
-it later with `colima stop`.
+  Colima must be running while you develop: `colima start` / `colima stop`.
 
-#### Windows and WSL2 support
+#### Linux (Ubuntu, Pop!_OS, Debian, Fedora, RHEL, CentOS)
 
-Native Windows development through PowerShell or Command Prompt is not
-supported. WSL2 with Docker Desktop should be viable when used as a Linux
-development environment, but it is currently untested. Install the required
-tools inside WSL, clone the repository in the WSL filesystem rather than under
-`/mnt/c`, and run all project commands from the WSL terminal. The project team
-may not be able to troubleshoot Windows-specific setup issues during meetups.
+- **Docker Engine** (standard): follow the
+  [installation guide](https://docs.docker.com/engine/install/) for your
+  distribution and install the
+  [Compose plugin](https://docs.docker.com/compose/install/linux/). Start the
+  service if the installer did not:
 
-#### Optional database viewer
+```bash
+sudo systemctl enable --now docker
+```
 
-A database GUI is not required. [DBeaver Community](https://dbeaver.io/download/)
-is a free option, but any PostgreSQL-compatible GUI will work. To inspect the
-database without installing a GUI or PostgreSQL locally, use `make db-psql` to
-open the `psql` command-line client inside the running database container.
+  The Makefile runs Docker without `sudo`. If your account cannot access
+  Docker, follow the
+  [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/),
+  then log out and back in:
 
-### Verify the installation
+```bash
+sudo usermod -aG docker "$USER"
+```
 
-Each command must complete without an error before continuing:
+  Membership in the `docker` group grants root-level access. Rootless Docker
+  and non-default daemon sockets are not verified.
+
+- **Docker Desktop for Linux**: install
+  [Docker Desktop](https://docs.docker.com/desktop/setup/install/linux/) if you
+  prefer a GUI (requires x86-64, systemd, and KVM).
+
+#### Windows
+
+Native Windows (PowerShell, Command Prompt) is not supported. WSL2 with Docker
+Desktop should work as a Linux environment but is untested: install every tool
+inside WSL, clone the repository into the WSL filesystem (not under `/mnt/c`),
+and run all commands from the WSL terminal. The team may not be able to
+troubleshoot Windows-specific issues during meetups.
+
+### Step 3: Check the installation
+
+Each command must complete without an error:
 
 ```bash
 docker version
 docker compose version
 docker run --rm hello-world
+cdk --version
+uv --version
 ```
 
-Installation and the first local startup require internet access to GitHub,
-package registries, and public container-image registries.
+The first start needs internet access to GitHub, package registries, and
+public container-image registries.
 
-### 2. Clone, start, and test
-
-Clone the repository, enter its directory, and start the local Lambda
-environment:
+### Step 4: Clone and start
 
 ```bash
 git clone https://github.com/CivicTechAtlanta/proj-ga-court-reminders.git
@@ -133,103 +109,160 @@ cd proj-ga-court-reminders
 make local-start
 ```
 
-This one command verifies the required tools, installs project dependencies,
-starts Floci and the fixture court database, bootstraps Floci, and deploys both
-CDK stacks using dummy credentials. `CourtDatabaseStack` deploys to Floci as an
-RDS Postgres instance (Floci runs real Postgres containers but cannot start SQL
-Server), seeded during the deploy with the same scripts that seed the fixture
-database, and the Lambdas connect to it through Secrets Manager exactly as
-they do in AWS. The compose `db` service remains the quick way to inspect the
-fixtures with `make db-psql` or a GUI.
+`make local-start` checks the tools (`make doctor`), installs the Python
+dependencies, starts Floci, bootstraps it for CDK, and deploys both CDK stacks
+with dummy credentials. The deploy creates a Postgres database inside Floci and
+seeds it with the court fixtures. The first run takes a minute or two, mostly
+building the Lambda bundles. It has worked when the output ends with:
 
-### 3. Develop Lambda functions
+```
+CourtReminderStack.CourtDatabaseSeedHearings = 11
+Local Lambdas are ready. Run: make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
+```
 
-The CDK-managed Lambda entry points are under `lambda/`:
+### Step 5: Try it
 
-- `main.py`
-- `message_sender.py`
-- `message_response.py`
-- `message_status.py`
+Invoke the main Lambda, which queries the database for hearings due for a
+reminder and returns them as JSON (11 of them right after a start):
 
-After changing Lambda code, redeploy it to Floci and invoke it by its CDK
-construct name:
+```bash
+make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
+```
+
+Run the canonical seven-day hearing query against the database (expect
+`(11 rows)`):
+
+```bash
+make db-verify
+```
+
+Run the tests. The four Postgres integration tests run against the Floci
+database; the SQL Server ones skip unless you point them at a SQL Server:
+
+```bash
+uv run pytest
+```
+
+Connect a GUI such as [DBeaver Community](https://dbeaver.io/download/) (any
+PostgreSQL-compatible client works) using the URL that `make db-url` prints,
+normally:
+
+```
+postgresql://court:court@localhost:7001/courtdb
+```
+
+The tables live in the `dbo` schema, mirroring the SQL Server layout. Or open a
+`psql` shell in a throwaway container with `make db-psql`.
+
+## Starting from zero
+
+To throw away every piece of local state and rebuild as if you had just
+cloned:
+
+```bash
+make local-reset
+```
+
+This stops Floci, removes the containers and volumes it created (the Lambda
+bundles and the database), deletes Floci's own state, and then runs the whole
+`make local-start` sequence again: tool checks, Floci, bootstrap, deploy, seed.
+Use it whenever you change CDK infrastructure, when something looks stuck, or
+when you want a clean demo. It ends with the same two lines as step 4.
+
+To stop the project without deleting anything:
+
+```bash
+make local-down
+```
+
+This stops Floci and removes its helper containers but keeps the data volumes;
+`make local-start` picks up where you left off. Stopping Docker Desktop or
+Colima also works but affects every project using that engine.
+
+If only the fixture dates have gone stale (they are anchored to the day the
+database was seeded, and the seven-day query goes empty about a week later),
+re-seed without rebuilding:
+
+```bash
+make db-reset
+```
+
+Under the hood, `make local-start` is `doctor` (tool checks), `local-up`
+(start Floci), `setup` (`uv sync`), `local-bootstrap` (CDK bootstrap, once),
+and `local-deploy` (CDK deploy); `make local-reset` wipes state first and then
+runs the same five. Each is a Make target you can run on its own, and
+`make synth` renders the CloudFormation templates without deploying.
+
+## Day-to-day development
+
+### Lambda functions
+
+The CDK-managed entry points are under `lambda/`: `main.py`,
+`message_sender.py`, `message_response.py`, `message_status.py`, and
+`database_loader.py` (the seed). Database access goes through the
+`lambda/court_db/` package, which reads its settings from environment
+variables and works unchanged against Floci's Postgres locally and RDS SQL
+Server in AWS.
+
+After changing Lambda code, redeploy and invoke by CDK construct name:
 
 ```bash
 make local-deploy
 make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
 ```
 
-The invocation response and any function error are printed in the current
-terminal. `CourtBotMain` queries the Floci-hosted database and returns the
-hearings due for a reminder; expect 11 right after `make local-start`.
-
-`EVENT` is optional for Lambdas that accept an empty event. For example:
+The response and any function error print in your terminal. `EVENT` is
+optional for Lambdas that accept an empty event:
 
 ```bash
 make local-invoke FUNCTION=CourtBotMessageStatus
-make local-invoke FUNCTION=CourtBotMessageResponse EVENT=path/to/event.json
 ```
 
-#### Add a new Lambda
+`make local-deploy` uses CDK hotswap because Floci cannot reliably apply
+CloudFormation updates in place. After changing CDK infrastructure (anything
+under `cdk_stack/`), use `make local-reset` instead.
 
-Add the handler under `lambda/`, register a `PythonFunction` with a unique CDK
-construct name in `cdk_stack/cdk_stack.py`, and add a sample event under
-`scripts/events/` when needed. Deploy the new infrastructure and invoke the
-function:
+To add a Lambda: add the handler under `lambda/`, register it with a unique
+construct name in `cdk_stack/cdk_stack.py`, add a sample event under
+`scripts/events/` if it needs one, then `make local-reset` and invoke it.
+`local-invoke` calls the function directly; it does not exercise SQS,
+event-source mappings, retries, or a DLQ.
+
+### Database
+
+| Command | What it does |
+|---|---|
+| `make db-verify` | run the seven-day hearing query; expect 11 rows after a seed |
+| `make db-psql` | open a `psql` shell against the database |
+| `make db-url` | print the connection URL for DBeaver or another GUI |
+| `make db-reset` | re-seed the database, re-anchoring the date-relative fixtures |
+
+The local database is Postgres standing in for the production Benchmark/Odyssey
+SQL Server schema; it is not engine-compatible with SQL Server, and all SQL
+against it must leave identifiers unquoted. See
+[ADR 002](docs/adr/002-docker-postgres-simulates-court-case-db.md). Locally the
+Lambdas are built for your machine's CPU architecture (Floci runs them
+natively); in AWS they use Lambda's default x86-64.
+
+### Checks
 
 ```bash
-make local-reset
-make local-invoke FUNCTION=YourConstructName EVENT=scripts/events/your-event.json
+uv run pytest      # unit tests, plus integration tests when the stack is up
+make lint          # ruff check
+make format        # ruff format
+make help          # every Make target with a one-line description
 ```
 
-No Lambda-specific Make target is required. `local-invoke` calls the Lambda
-directly; it does not exercise an SQS queue, event-source mapping, retries, or a
-DLQ. A future SQS workflow will need a separate enqueue command.
+## AWS deployment
 
-`make local-deploy` uses CDK hotswap because Floci cannot reliably update every
-CloudFormation resource in place. After changing CDK infrastructure, use
-`make local-reset` for a clean full deployment instead.
+Merges to `main` deploy through the repository's GitHub Actions pipeline.
+Manual deployment needs the AWS CLI and configured credentials. Do not set
+`AWS_ENDPOINT_URL` when targeting real AWS; the local Make targets set it only
+for Floci.
 
-Useful database and project commands:
-
-```bash
-make db-verify     # run the seven-day hearing query; expect 11 rows
-make db-psql       # open a psql shell
-make help          # list annotated Make targets
-```
-
-For DBeaver or another PostgreSQL-compatible GUI, the fixture database is at
-`postgresql://court:court@localhost:5434/courtdb`. Its dates are anchored when
-the volume is first created. Run `make db-reset` to re-anchor the fixtures if
-they age out.
-
-Postgres translates the expected Benchmark/Odyssey SQL Server schema for local
-development; it is not engine-compatible with SQL Server. See
-[ADR 002](docs/adr/002-docker-postgres-simulates-court-case-db.md).
-
-### 4. Stop or reset
-
-Stop only this project's containers while preserving local data:
-
-```bash
-make local-down
-```
-
-This is the same on macOS and Linux. You may separately stop Docker Desktop or
-Colima, but that also affects other projects using that runtime.
-
-Delete all local data, rebuild the services, and redeploy the stack:
-
-```bash
-make local-reset
-```
-
-## AWS/CDK Deployment Process
-
-Merges to this repo's `main` branch, will deploy through the repository pipeline. Manual deployment to a
-real AWS account requires the AWS CLI and configured AWS credentials. Do not set
-`AWS_ENDPOINT_URL` when targeting a real AWS account; the local Make targets set
-it only for Floci.
+The same two stacks deploy: `CourtDatabaseStack` becomes RDS SQL Server
+Express in an isolated-subnet VPC with generated credentials in Secrets
+Manager, and `CourtReminderStack` places the Lambdas in that VPC.
 
 Add project dependencies with `uv add <dependency>`, then run
 `make requirements` to refresh the exported deployment requirements.
@@ -243,12 +276,11 @@ pattern from AWS's
 [Use AWS CDK to initialize Amazon RDS instances](https://aws.amazon.com/blogs/infrastructure-and-automation/use-aws-cdk-to-initialize-amazon-rds-instances/)),
 because the instance is only reachable from inside its VPC. It drops and
 reloads every court table from the scripts under `lambda/court_db/seed/`, one
-directory per engine with row-for-row the same data; the Postgres scripts
-also seed the compose `db` service on its first start.
+directory per engine with row-for-row the same data.
 
-The seed re-runs automatically when those scripts change. Fixture dates
-anchor to the server's date at seeding time, so to re-anchor them without
-changing the scripts, deploy with a new `reseed` value:
+The seed re-runs automatically when those scripts change. To re-anchor the
+fixture dates without changing the scripts, run `make db-reset` locally, or in
+AWS deploy with a new `reseed` value:
 
 ```bash
 uv run cdk deploy CourtReminderStack -c reseed=$(date +%s)
