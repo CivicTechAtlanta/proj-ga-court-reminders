@@ -42,6 +42,22 @@ def functions(template):
     return template.find_resources("AWS::Lambda::Function")
 
 
+def assert_endpoints(database):
+    """Secrets Manager (interface, for the credentials) and S3 (gateway, for
+    the seed Lambda's answer to CloudFormation): the isolated subnets have no
+    other route to either."""
+    endpoints = database.find_resources("AWS::EC2::VPCEndpoint")
+    by_type = {}
+    for resource in endpoints.values():
+        props = resource["Properties"]
+        by_type[props.get("VpcEndpointType", "Gateway")] = json.dumps(
+            props["ServiceName"]
+        )
+    assert set(by_type) == {"Interface", "Gateway"}, by_type
+    assert "secretsmanager" in by_type["Interface"]
+    assert ".s3" in by_type["Gateway"]
+
+
 # ---------------------------------------------------------------- AWS mode
 
 
@@ -58,7 +74,7 @@ def test_aws_database_is_encrypted_private_sql_server_with_no_nat():
         },
     )
     database.resource_count_is("AWS::EC2::NatGateway", 0)
-    database.resource_count_is("AWS::EC2::VPCEndpoint", 1)
+    assert_endpoints(database)
     database.resource_count_is("AWS::SecretsManager::SecretTargetAttachment", 1)
     database.resource_count_is("Custom::VpcRestrictDefaultSG", 1)
 
@@ -126,6 +142,7 @@ def test_local_database_is_postgres_with_plain_credentials_and_no_sg_lockdown():
     )
     database.resource_count_is("Custom::VpcRestrictDefaultSG", 0)
     database.resource_count_is("AWS::SecretsManager::SecretTargetAttachment", 0)
+    assert_endpoints(database)
     (instance,) = database.find_resources("AWS::RDS::DBInstance").values()
     assert "DBInstanceIdentifier" not in instance["Properties"]
     (secret,) = database.find_resources("AWS::SecretsManager::Secret").values()
