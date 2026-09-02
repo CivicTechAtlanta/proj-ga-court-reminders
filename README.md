@@ -16,6 +16,7 @@ require an AWS account or AWS credentials.
   your Linux package manager
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - [Node.js](https://nodejs.org/en/download) 22 or 24 LTS (or use a version manager like [mise](https://mise.jdx.dev/))
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 - [AWS CDK CLI](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html), installed after Node.js:
 
 ```bash
