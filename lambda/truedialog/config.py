@@ -14,8 +14,9 @@ from dataclasses import dataclass
 
 DEFAULT_BASE_URL = "https://api.truedialog.com/api/v2.1"
 # TrueDialog's own Power Platform connector documents channel 22 as "the
-# default associated phone number". Override with TRUEDIALOG_CHANNEL_ID once
-# the account has a dedicated long code or short code.
+# default associated phone number", and a send over it was confirmed against
+# the project account on 2026-09-11. Override with TRUEDIALOG_CHANNEL_ID if
+# the account gains a dedicated long code or short code.
 DEFAULT_CHANNEL_ID = "22"
 DEFAULT_TIMEOUT_SECONDS = "10"
 
