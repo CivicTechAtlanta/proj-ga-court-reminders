@@ -39,6 +39,8 @@ def client():
 
 
 def test_credentials_are_accepted(client):
+    # Checks the configured account, not /userinfo: a key can be denied
+    # /userinfo (HTTP 403) and still send perfectly well.
     assert client.ping() is True
 
 

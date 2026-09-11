@@ -164,12 +164,21 @@ class TrueDialogClient:
         return self._request("GET", f"/account/{self._config.account_id}")
 
     def ping(self) -> bool:
-        """True when TrueDialog accepts the credentials, False when it
-        rejects them; any other failure raises."""
+        """True when TrueDialog accepts these credentials for this account.
+
+        Asks for the configured account rather than /userinfo. An API key
+        can be denied /userinfo while working perfectly for sending, so
+        checking it would report a healthy account as broken. This also
+        checks one thing more than credentials: 404 means the key is valid
+        but the configured account id is not one it can see.
+
+        False covers both of those; anything else, such as a 500 or an
+        unreachable host, raises rather than being reported as a verdict.
+        """
         try:
-            self.user_info()
+            self.account_info()
         except TrueDialogApiError as error:
-            if error.status in (401, 403):
+            if error.status in (401, 403, 404):
                 return False
             raise
         return True

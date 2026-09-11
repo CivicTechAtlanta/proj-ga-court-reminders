@@ -129,6 +129,20 @@ def test_seed_custom_resource_is_served_by_the_loader_directly():
     reminder.has_output("CourtDatabaseSeedHearings", {})
 
 
+def test_the_seed_waits_for_its_log_group():
+    """Otherwise the loader's first run creates the group itself and the
+    stack fails with "The specified log group already exists"."""
+    _, reminder = synth(local=False)
+
+    (seed,) = reminder.find_resources("Custom::CourtDatabaseSeed").values()
+    (log_group_id,) = [
+        logical_id
+        for logical_id in reminder.find_resources("AWS::Logs::LogGroup")
+        if logical_id.startswith("CourtBotDatabaseLoaderLogGroup")
+    ]
+    assert log_group_id in seed["DependsOn"]
+
+
 def test_cross_stack_values_are_exported_not_weak_references():
     _, reminder = synth(local=False)
     rendered = json.dumps(reminder.to_json())

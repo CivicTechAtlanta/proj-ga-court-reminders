@@ -263,6 +263,12 @@ class CourtReminderStack(Stack):
             },
         )
         seed.node.add_dependency(self._database.database)
+        # CloudFormation invokes the loader the moment this resource is
+        # created, and the Lambda runtime creates its own log group on first
+        # run. With useCdkManagedLogGroup the group is also a stack resource,
+        # so without this dependency the two race and the deploy fails with
+        # "The specified log group already exists".
+        seed.node.add_dependency(loader.log_group)
         CfnOutput(
             self,
             "CourtDatabaseSeedHearings",

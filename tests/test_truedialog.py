@@ -203,13 +203,22 @@ def test_unexpected_success_bodies_are_reported():
 # -------------------------------------------------------------- read calls
 
 
-def test_ping_reports_whether_the_credentials_are_accepted():
-    accepted, _ = client_with(json_response(200, {"userName": "courtbot"}))
+def test_ping_asks_about_the_account_not_the_user():
+    """A real API key can be denied /userinfo while sending fine, so the
+    health check must not depend on it."""
+    accepted, transport = client_with(json_response(200, {"id": 12345}))
+
     assert accepted.ping() is True
+    assert transport.requests[0].url.endswith("/account/12345")
 
-    rejected, _ = client_with(json_response(401, {"message": "Unauthorized"}))
-    assert rejected.ping() is False
 
+@pytest.mark.parametrize("status", [401, 403, 404])
+def test_ping_is_false_when_the_account_is_refused_or_unknown(status):
+    refused, _ = client_with(json_response(status, {"message": "Permission denied."}))
+    assert refused.ping() is False
+
+
+def test_ping_raises_on_failures_that_are_not_a_verdict():
     broken, _ = client_with(json_response(500, {"message": "boom"}))
     with pytest.raises(TrueDialogApiError):
         broken.ping()
