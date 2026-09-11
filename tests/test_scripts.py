@@ -135,6 +135,9 @@ def test_local_deploy_lets_the_shell_override_dotenv(monkeypatch, tmp_path):
     env_file.write_text("TRUEDIALOG_API_KEY=from-file\nTRUEDIALOG_ACCOUNT_ID=777\n")
     monkeypatch.setattr(local_cdk_deploy, "ENV_FILE", env_file)
     monkeypatch.setenv("TRUEDIALOG_API_KEY", "from-shell")
+    # Stated rather than assumed: a developer running this with a real .env
+    # already loaded would otherwise see their own value win.
+    monkeypatch.delenv("TRUEDIALOG_ACCOUNT_ID", raising=False)
 
     environment = local_cdk_deploy._deploy_environment()
 

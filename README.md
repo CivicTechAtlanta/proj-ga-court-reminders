@@ -356,6 +356,12 @@ aws secretsmanager put-secret-value --region us-east-2 --secret-id <TrueDialogSe
 Destroying `CourtReminderStack` deletes both secrets, so the TrueDialog values
 must be entered again after a redeploy from scratch.
 
+The sender is the only Lambda outside the database VPC, which is what gives it
+a route to TrueDialog without paying for a NAT gateway. That is a development
+compromise: production has to run every Lambda inside the VPC. See
+[ADR 004](docs/adr/004-text-sender-runs-outside-the-vpc.md) for the reasoning
+and what the two shapes cost.
+
 The integration tests skip without credentials. With them, `ping` and account
 checks run; a real text is sent only when `TRUEDIALOG_TEST_NUMBER` is set:
 

@@ -16,18 +16,21 @@ import pytest
 
 from truedialog import TrueDialogClient, TrueDialogConfig, TrueDialogConfigError
 
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv()
-except ImportError:  # the integration dependency group is optional
-    pass
-
 pytestmark = pytest.mark.integration_truedialog
 
 
 @pytest.fixture(scope="module")
 def client():
+    # .env is read here rather than at import. At import it would run during
+    # collection of the whole suite, and a contributor's .env would leak its
+    # values, empty ones included, into every other test's environment.
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:  # the integration dependency group is optional
+        pass
+
     try:
         config = TrueDialogConfig.from_env()
     except TrueDialogConfigError as error:
