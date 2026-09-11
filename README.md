@@ -245,6 +245,124 @@ against it must leave identifiers unquoted. See
 Lambdas are built for your machine's CPU architecture (Floci runs them
 natively); in AWS they use Lambda's default x86-64.
 
+### Text messages (TrueDialog)
+
+Outbound SMS goes through [TrueDialog](https://api.truedialog.com/docs/). The
+`lambda/truedialog/` package wraps its REST API the way `court_db` wraps the
+database: handlers import only from the package root, settings come from
+environment variables locally and from Secrets Manager when deployed, and the
+HTTP transport is injectable so unit tests never touch the network.
+
+```python
+from truedialog import truedialog_client
+
+result = truedialog_client().send_message("(404) 555-0142", "See you in court.")
+print(result.action_id, result.status)
+```
+
+`send_message` normalizes US phone numbers to E.164, posts a push-campaign
+action over the configured channel, and raises `TrueDialogApiError` (with the
+HTTP status and body) when TrueDialog rejects the request. `ping()` checks
+the credentials without sending anything.
+
+The sender Lambda (`CourtBotMessageSender`) is the one Lambda outside the
+database VPC, so it reaches TrueDialog and Secrets Manager over the internet
+at no cost (the isolated subnets have no route out). It reads its credentials
+from a Secrets Manager secret that `CourtReminderStack` creates, named by
+`TRUEDIALOG_SECRET_ID` (JSON keys `api_key`, `api_secret`, `account_id`,
+`channel_id`).
+
+Developers send texts through the sender's function URL, the `SenderUrl`
+stack output, or by putting a message on the outbox queue described below. The URL is public, so every request must carry the `x-api-key`
+header with the value of the `SenderApiKey` secret (the `SenderApiKeySecretArn`
+output; CloudFormation generates it in AWS, and on Floci it is always
+`local-dev-key`). `GET` reports readiness without sending; `POST` sends one
+text:
+
+```bash
+aws cloudformation describe-stacks --region us-east-2 --stack-name CourtReminderStack \
+  --query "Stacks[0].Outputs" --output table
+aws secretsmanager get-secret-value --region us-east-2 --secret-id <SenderApiKeySecretArn> \
+  --query SecretString --output text
+curl -X POST "<SenderUrl>" -H "x-api-key: <key>" -H "content-type: application/json" \
+  -d '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}'
+```
+
+Errors come back as JSON: 401 for a missing or wrong key, 400 for a bad
+request or phone number, 502 when TrueDialog rejects the send, and 503 while
+the TrueDialog secret is still empty.
+
+[docs/insomnia/court-reminders.json](docs/insomnia/court-reminders.json) is an
+[Insomnia](https://insomnia.rest/) collection covering those calls: import it,
+pick the `Dev (AWS)` or `Local (Floci)` environment, and fill in `sender_url`
+and `api_key`. The dev key is a real credential, so put it in a private
+environment (Insomnia leaves those out of exports) rather than committing a
+filled-in copy.
+
+#### The outbox queue
+
+`CourtReminderStack` also creates an SQS queue, `CourtBotOutboxUrl`, wired to
+the sender. A queue message body is exactly the JSON the function URL accepts,
+so a reminder reaches the sender the same way by either route:
+
+```json
+{"to": "+14045550142", "message": "See you in court Thursday."}
+```
+
+Nothing produces messages yet. `CourtBotMain` will once the reminder copy has
+a home; until then, put one on the queue by hand:
+
+```bash
+aws sqs send-message --region us-east-2 --queue-url <CourtBotOutboxUrl> \
+  --message-body '{"to": "+14045550142", "message": "See you in court Thursday."}'
+```
+
+The sender reports failures per record, so one bad message never re-texts the
+rest of its batch. A message that keeps failing moves to the dead letter
+queue, `CourtBotOutboxDeadLettersUrl`, after three receives, with its payload
+intact. That is the first place to look when a reminder does not arrive;
+the sender's own logs deliberately carry no phone number or message text.
+
+To exercise the queue path locally without a queue, invoke the sender with a
+sample SQS event:
+
+```bash
+make local-invoke FUNCTION=CourtBotMessageSender EVENT=scripts/events/sqs-send.json
+```
+
+Locally, put `TRUEDIALOG_API_KEY`, `TRUEDIALOG_API_SECRET`, and
+`TRUEDIALOG_ACCOUNT_ID` in `.env` (see `.template.env`; `TRUEDIALOG_CHANNEL_ID`
+defaults to TrueDialog's channel 22). `make local-deploy` copies them into the
+secret inside Floci, creates the same function URL there (its address is the
+`SenderUrl` output), and the Lambda reads the secret exactly as it will in
+AWS. Hotswap deploys skip secret changes, so after editing those values run
+`make local-reset`. Direct invocations need no key:
+
+```bash
+make local-invoke FUNCTION=CourtBotMessageSender
+echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
+make local-invoke FUNCTION=CourtBotMessageSender EVENT=/tmp/sms.json
+```
+
+In AWS the TrueDialog secret is created with empty values, and its ARN is the
+`TrueDialogSecretArn` stack output. Fill it in once after the first deploy;
+later deploys leave the value alone:
+
+```bash
+aws secretsmanager put-secret-value --region us-east-2 --secret-id <TrueDialogSecretArn> \
+  --secret-string '{"api_key":"...","api_secret":"...","account_id":"...","channel_id":"22"}'
+```
+
+Destroying `CourtReminderStack` deletes both secrets, so the TrueDialog values
+must be entered again after a redeploy from scratch.
+
+The integration tests skip without credentials. With them, `ping` and account
+checks run; a real text is sent only when `TRUEDIALOG_TEST_NUMBER` is set:
+
+```bash
+uv run --group integration pytest tests/test_truedialog_integration.py -v -rs
+```
+
 ### Checks
 
 ```bash
@@ -264,7 +382,9 @@ for Floci.
 The same two stacks deploy: `CourtDatabaseStack` becomes RDS SQL Server
 Express (instance `courtbot-dev`) in an isolated-subnet VPC with generated
 credentials in Secrets Manager, and `CourtReminderStack` places the Lambdas
-in that VPC. The instance is not reachable from outside the VPC.
+in that VPC, except the text sender, which runs outside it behind a public
+function URL (see [Text messages](#text-messages-truedialog)). The instance
+is not reachable from outside the VPC.
 
 Add project dependencies with `uv add <dependency>`, then run
 `make requirements` to refresh the exported deployment requirements.

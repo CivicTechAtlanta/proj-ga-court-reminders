@@ -2,6 +2,7 @@
 
 import pytest
 
+import local_cdk_deploy
 import local_cleanup
 import local_db_url
 
@@ -105,3 +106,37 @@ def test_db_url_resolves_resources_through_the_stack():
     )
     with pytest.raises(SystemExit, match="found 0"):
         local_db_url._physical_id(resources, "AWS::RDS::DBInstance", "Missing")
+
+
+def test_local_deploy_reads_dotenv_values(tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "# TrueDialog\n"
+        "TRUEDIALOG_API_KEY=abc\n"
+        'TRUEDIALOG_API_SECRET="s3cr=3t"\n'
+        "TRUEDIALOG_ACCOUNT_ID = 777 \n"
+        "EMPTY=\n"
+        "\n"
+        "export FOO='bar'\n"
+        "not a setting\n"
+    )
+    assert local_cdk_deploy._dotenv(env_file) == {
+        "TRUEDIALOG_API_KEY": "abc",
+        "TRUEDIALOG_API_SECRET": "s3cr=3t",
+        "TRUEDIALOG_ACCOUNT_ID": "777",
+        "EMPTY": "",
+        "FOO": "bar",
+    }
+    assert local_cdk_deploy._dotenv(tmp_path / "missing") == {}
+
+
+def test_local_deploy_lets_the_shell_override_dotenv(monkeypatch, tmp_path):
+    env_file = tmp_path / ".env"
+    env_file.write_text("TRUEDIALOG_API_KEY=from-file\nTRUEDIALOG_ACCOUNT_ID=777\n")
+    monkeypatch.setattr(local_cdk_deploy, "ENV_FILE", env_file)
+    monkeypatch.setenv("TRUEDIALOG_API_KEY", "from-shell")
+
+    environment = local_cdk_deploy._deploy_environment()
+
+    assert environment["TRUEDIALOG_API_KEY"] == "from-shell"
+    assert environment["TRUEDIALOG_ACCOUNT_ID"] == "777"

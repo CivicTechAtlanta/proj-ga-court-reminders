@@ -1,0 +1,321 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-09-10T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v10.0.0",
+  "resources": [
+    {
+      "_id": "wrk_courtreminders",
+      "_type": "workspace",
+      "parentId": null,
+      "name": "GA Court Reminders",
+      "description": "The court-reminder text sender (CourtBotMessageSender) behind its Lambda function URL.\n\nPick an environment before sending, then fill in sender_url and api_key:\n  Dev (AWS)      SenderUrl and SenderApiKeySecretArn stack outputs\n  Local (Floci)  the SenderUrl output of the local stack; the key is always local-dev-key\n\nRead the outputs with:\n  aws cloudformation describe-stacks --region us-east-2 \\\n    --stack-name CourtReminderStack --query 'Stacks[0].Outputs' --output table\n  aws secretsmanager get-secret-value --region us-east-2 \\\n    --secret-id <SenderApiKeySecretArn> --query SecretString --output text\n\nThe dev key is a real credential. Keep it out of git: either fill it into a private environment (Insomnia excludes those from exports) or do not commit your filled-in copy of this file.",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_base_courtreminders",
+      "_type": "environment",
+      "parentId": "wrk_courtreminders",
+      "name": "Base Environment",
+      "data": {
+        "sender_url": "",
+        "api_key": "",
+        "test_number": "+14045550142",
+        "message": "Hello from GA Court Reminders"
+      },
+      "dataPropertyOrder": {
+        "&": [
+          "sender_url",
+          "api_key",
+          "test_number",
+          "message"
+        ]
+      },
+      "color": null,
+      "isPrivate": false,
+      "metaSortKey": 1757500000000
+    },
+    {
+      "_id": "env_dev_aws",
+      "_type": "environment",
+      "parentId": "env_base_courtreminders",
+      "name": "Dev (AWS)",
+      "data": {
+        "sender_url": "",
+        "api_key": "",
+        "test_number": "+14045550142"
+      },
+      "dataPropertyOrder": {
+        "&": [
+          "sender_url",
+          "api_key",
+          "test_number"
+        ]
+      },
+      "color": "#7d69cb",
+      "isPrivate": false,
+      "metaSortKey": 1757500000001
+    },
+    {
+      "_id": "env_local_floci",
+      "_type": "environment",
+      "parentId": "env_base_courtreminders",
+      "name": "Local (Floci)",
+      "data": {
+        "sender_url": "",
+        "api_key": "local-dev-key",
+        "test_number": "+14045550142"
+      },
+      "dataPropertyOrder": {
+        "&": [
+          "sender_url",
+          "api_key",
+          "test_number"
+        ]
+      },
+      "color": "#6fa8dc",
+      "isPrivate": false,
+      "metaSortKey": 1757500000002
+    },
+    {
+      "_id": "fld_sending",
+      "_type": "request_group",
+      "parentId": "wrk_courtreminders",
+      "name": "Sending",
+      "description": "The two calls the sender answers on its function URL.",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1000
+    },
+    {
+      "_id": "fld_errors",
+      "_type": "request_group",
+      "parentId": "wrk_courtreminders",
+      "name": "Error cases",
+      "description": "Each of these should come back with the status in its name. Useful for checking a fresh deploy without texting anyone.",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -900
+    },
+    {
+      "_id": "req_readiness",
+      "_type": "request",
+      "parentId": "fld_sending",
+      "name": "Readiness check (200)",
+      "description": "GET sends nothing. It reports the account and channel the sender resolved from the TrueDialog secret, and whether TrueDialog accepts the credentials.\n\ncredentials_accepted is true when the wiring works, false when TrueDialog rejects the key, and null with an error when the API was unreachable.",
+      "method": "GET",
+      "url": "{{ _.sender_url }}",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "name": "x-api-key",
+          "value": "{{ _.api_key }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_send",
+      "_type": "request",
+      "parentId": "fld_sending",
+      "name": "Send a text (200)",
+      "description": "Sends one real text to test_number and charges real TrueDialog message credit. The reply carries the TrueDialog action_id, which the portal and the delivery notices refer to.",
+      "method": "POST",
+      "url": "{{ _.sender_url }}",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"to\": \"{{ _.test_number }}\",\n  \"message\": \"{{ _.message }}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "x-api-key",
+          "value": "{{ _.api_key }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -900,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_no_key",
+      "_type": "request",
+      "parentId": "fld_errors",
+      "name": "No API key (401)",
+      "description": "The function URL is public, so the handler refuses any request without a matching x-api-key header.",
+      "method": "POST",
+      "url": "{{ _.sender_url }}",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"to\": \"{{ _.test_number }}\",\n  \"message\": \"{{ _.message }}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1000,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_wrong_key",
+      "_type": "request",
+      "parentId": "fld_errors",
+      "name": "Wrong API key (401)",
+      "description": "Same refusal for a key that does not match the SenderApiKey secret.",
+      "method": "POST",
+      "url": "{{ _.sender_url }}",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"to\": \"{{ _.test_number }}\",\n  \"message\": \"{{ _.message }}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "x-api-key",
+          "value": "not-the-key"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -900,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_incomplete",
+      "_type": "request",
+      "parentId": "fld_errors",
+      "name": "Missing the message field (400)",
+      "description": "A POST body needs both to and message.",
+      "method": "POST",
+      "url": "{{ _.sender_url }}",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"to\": \"{{ _.test_number }}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "x-api-key",
+          "value": "{{ _.api_key }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -800,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_bad_number",
+      "_type": "request",
+      "parentId": "fld_errors",
+      "name": "Invalid phone number (400)",
+      "description": "Numbers are normalized to E.164 before any call to TrueDialog, so a bad one fails here rather than costing a message.",
+      "method": "POST",
+      "url": "{{ _.sender_url }}",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"to\": \"555-0142\",\n  \"message\": \"{{ _.message }}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "x-api-key",
+          "value": "{{ _.api_key }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -700,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_bad_method",
+      "_type": "request",
+      "parentId": "fld_errors",
+      "name": "Unsupported method (405)",
+      "description": "Only GET and POST are handled.",
+      "method": "PUT",
+      "url": "{{ _.sender_url }}",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"to\": \"{{ _.test_number }}\",\n  \"message\": \"{{ _.message }}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "x-api-key",
+          "value": "{{ _.api_key }}"
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -600,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    }
+  ]
+}
