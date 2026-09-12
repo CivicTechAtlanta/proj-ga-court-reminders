@@ -103,6 +103,25 @@ def _handle_sqs(event):
     A failure to build the client at all, such as a TrueDialog secret
     nobody has filled in, raises instead, which fails the whole batch and
     leaves every message on the queue.
+
+    Delivery is at-least-once, and this function is not idempotent. Two
+    windows remain open, both of them narrow and neither closed by code
+    here:
+
+    1. TrueDialog accepts the push but its answer never arrives, because
+       the HTTP call times out or the connection drops. The send counts as
+       failed, the record goes back on the queue, and the retry sends the
+       text a second time.
+    2. An SQS standard queue can deliver the same message more than once
+       on its own, with nothing having gone wrong.
+
+    Closing either one needs somewhere durable to record that a message
+    was already sent, keyed on the queue message id, and checked before
+    sending. That is a conditional write to a store this stack does not
+    have yet. Until it exists, prefer a duplicate reminder over a missing
+    one: someone texted twice is irritated, someone never texted misses a
+    hearing. OUTBOX_BATCH_SIZE is 1 so that a crash mid-batch cannot
+    resend siblings that already went out.
     """
     records = event["Records"]
     queue = records[0].get("eventSourceARN", "an unnamed queue")

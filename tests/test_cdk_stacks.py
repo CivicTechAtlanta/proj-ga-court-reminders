@@ -283,6 +283,18 @@ def test_sender_is_fed_by_an_outbox_queue_with_dead_letters():
     assert "VpcConfig" not in sender_resource["Properties"]
 
 
+def test_one_queue_record_per_invocation():
+    """Pinned deliberately. The sender is not idempotent, so a batch larger
+    than one would let a single crash resend every text already handed to
+    TrueDialog earlier in that batch."""
+    _, reminder = synth(local=False)
+
+    assert reminder_module.OUTBOX_BATCH_SIZE == 1
+    reminder.has_resource_properties(
+        "AWS::Lambda::EventSourceMapping", {"BatchSize": 1}
+    )
+
+
 def test_the_queue_hides_a_message_for_at_least_as_long_as_a_send_can_take():
     """SQS rejects a visibility timeout below the function timeout, so this
     guards the sender's timeout against being raised on its own."""

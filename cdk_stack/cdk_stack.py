@@ -24,13 +24,17 @@ from database_stack import CourtDatabaseStack
 # stake. In AWS, CloudFormation generates a random one (see _sender_api_key).
 LOCAL_SENDER_API_KEY = "local-dev-key"
 
-# One queue message is one text, so a batch takes as long as TrueDialog does:
-# the sender's timeout covers OUTBOX_BATCH_SIZE sends at the wrapper's
-# ten-second HTTP timeout, with room left for a cold start. Shorter than the
-# other handlers on purpose, because SQS makes a queue message invisible for
-# at least the function timeout while it is being processed.
+# Covers one send at the wrapper's ten-second HTTP timeout with room for a
+# cold start. Shorter than the other handlers on purpose, because SQS makes a
+# queue message invisible for at least the function timeout while it runs.
 SENDER_TIMEOUT = Duration.minutes(2)
-OUTBOX_BATCH_SIZE = 5
+# One record per invocation, so that a crash or timeout can only redeliver the
+# message being sent, never one already handed to TrueDialog earlier in the
+# same batch. A batch of five would put four already-sent texts back on the
+# queue every time the fifth failed. Extra invocations are free at this volume
+# and duplicate court reminders are not. See _handle_sqs for what this does
+# not fix.
+OUTBOX_BATCH_SIZE = 1
 # AWS asks for a visibility timeout of six times the function timeout.
 OUTBOX_VISIBILITY_TIMEOUT = Duration.minutes(12)
 # Receives before a message moves to the dead letter queue.
