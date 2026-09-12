@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 
 from .config import TrueDialogConfig
 from .models import SmsResult
-from .phone import normalize_us_phone
+from .phone import mask, normalize_us_phone, redact
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +40,14 @@ class TrueDialogApiError(TrueDialogError):
 
     def __init__(self, status: int, body, method: str, path: str):
         self.status = status
-        self.body = body
+        # Redacted on the way in, so neither this object nor anything that
+        # renders it can leak a phone number the provider echoed back.
+        self.body = redact(body)
         self.method = method
         self.path = path
         super().__init__(
-            f"TrueDialog {method} {path} failed with HTTP {status}: {_summarize(body)}"
+            f"TrueDialog {method} {path} failed with HTTP {status}: "
+            f"{_summarize(self.body)}"
         )
 
 
@@ -149,7 +152,7 @@ class TrueDialogClient:
         logger.info(
             "TrueDialog accepted action %s for %s over channel %s (status: %s)",
             result.action_id,
-            ", ".join(_mask(target) for target in targets),
+            ", ".join(mask(target) for target in targets),
             channel,
             result.status,
         )
@@ -205,7 +208,7 @@ class TrueDialogClient:
                 method,
                 path,
                 response.status,
-                _summarize(decoded),
+                _summarize(redact(decoded)),
             )
             raise TrueDialogApiError(response.status, decoded, method, path)
         if decoded == "":
@@ -213,7 +216,7 @@ class TrueDialogClient:
         if not isinstance(decoded, dict):
             raise TrueDialogError(
                 f"Unexpected response body from TrueDialog {method} {path}: "
-                f"{_summarize(decoded)}"
+                f"{_summarize(redact(decoded))}"
             )
         return decoded
 
@@ -230,7 +233,3 @@ def _decode(body: bytes):
 def _summarize(body) -> str:
     text = json.dumps(body) if isinstance(body, (dict, list)) else str(body)
     return text if len(text) <= 200 else text[:200] + "..."
-
-
-def _mask(number: str) -> str:
-    return "***" + number[-4:]

@@ -17,7 +17,7 @@ from .client import (
 from .config import TrueDialogConfig, TrueDialogConfigError
 from .factory import truedialog_client
 from .models import SmsResult
-from .phone import normalize_us_phone
+from .phone import mask, normalize_us_phone, redact
 
 __all__ = [
     "SmsResult",
@@ -27,6 +27,8 @@ __all__ = [
     "TrueDialogConfigError",
     "TrueDialogConnectionError",
     "TrueDialogError",
+    "mask",
     "normalize_us_phone",
+    "redact",
     "truedialog_client",
 ]

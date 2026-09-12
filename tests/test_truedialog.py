@@ -26,6 +26,7 @@ from truedialog import (
     normalize_us_phone,
     truedialog_client,
 )
+from truedialog import mask, redact
 from truedialog.client import HttpRequest, HttpResponse, urllib_transport
 
 CONFIG = TrueDialogConfig(
@@ -435,3 +436,90 @@ def test_sms_result_tolerates_missing_fields():
         created=None,
         raw={},
     )
+
+
+# ---------------------------------------------------------------- redaction
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("+14045550142", "***0142"),
+        ("14045550142", "***0142"),
+        ("4045550142", "***0142"),
+        ("(404) 555-0142", "***0142"),
+        ("404-555-0142", "***0142"),
+        ("404.555.0142", "***0142"),
+    ],
+)
+def test_redact_masks_a_number_however_it_is_punctuated(raw, expected):
+    assert redact(f"target {raw} is opted out") == f"target {expected} is opted out"
+
+
+@pytest.mark.parametrize(
+    "untouched", ["401156510", "22", "12345", "HTTP 429", "2026-09-12"]
+)
+def test_redact_leaves_everything_that_is_not_a_number_alone(untouched):
+    """Action ids, channels, accounts and dates stay readable, or the logs
+    become useless."""
+    assert redact(f"value {untouched} here") == f"value {untouched} here"
+
+
+def test_redact_reaches_into_nested_bodies():
+    body = {
+        "message": "Invalid target",
+        "invalidTargets": [{"target": "+14045550142", "reasonId": 1}],
+        "actionId": 401156510,
+    }
+
+    assert redact(body) == {
+        "message": "Invalid target",
+        "invalidTargets": [{"target": "***0142", "reasonId": 1}],
+        "actionId": 401156510,
+    }
+
+
+def test_a_provider_error_carrying_a_number_is_redacted_everywhere():
+    """Logs live for two years and a number ties a person to a court case."""
+    leaky = {"message": "Target +1 404-555-0142 has opted out", "actionId": 401156510}
+    client, _ = client_with(json_response(400, leaky))
+
+    with pytest.raises(TrueDialogApiError) as excinfo:
+        client.send_message("+14045550142", "Reminder")
+
+    error = excinfo.value
+    assert "4045550142" not in str(error)
+    assert "555-0142" not in str(error)
+    assert "***0142" in str(error)
+    assert error.body["message"] == "Target ***0142 has opted out"
+    # Still debuggable.
+    assert error.status == 400
+    assert error.body["actionId"] == 401156510
+
+
+def test_the_error_log_line_carries_no_number(caplog):
+    leaky = {"message": "Target +14045550142 is invalid"}
+    client, _ = client_with(json_response(400, leaky))
+
+    with caplog.at_level(logging.ERROR, logger="truedialog.client"):
+        with pytest.raises(TrueDialogApiError):
+            client.send_message("+14045550142", "Reminder")
+
+    assert "4045550142" not in caplog.text
+    assert "***0142" in caplog.text
+
+
+def test_an_invalid_number_is_not_echoed_into_the_error():
+    """This message reaches CloudWatch through an unhandled Lambda error."""
+    with pytest.raises(ValueError) as excinfo:
+        normalize_us_phone("555-0142")
+
+    assert "555-0142" not in str(excinfo.value)
+    assert "0142" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"), [("+14045550142", "***0142"), ("142", "***"), ("", "***")]
+)
+def test_mask_keeps_at_most_the_last_four(raw, expected):
+    assert mask(raw) == expected
