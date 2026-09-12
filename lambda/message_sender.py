@@ -4,6 +4,12 @@ Three ways in, all carrying the same JSON object:
 
     {"to": "+14045550142", "message": "See you in court Thursday."}
 
+An optional "reminder_id" may be added to that object. When present, the
+id is checked against the sent log first and a reminder already texted is
+not texted again, which is what makes a queue retry safe. Queue messages
+without one fall back to the SQS message id, so redelivery of the same
+message is suppressed even if the producer sets no id of its own.
+
   * a message on the outbox queue (the CourtBotOutboxUrl stack output)
   * a POST to the sender's function URL (the SenderUrl stack output),
     which additionally needs the x-api-key header
@@ -23,6 +29,7 @@ import json
 import os
 from functools import lru_cache
 
+from sent_log import sent_log
 from truedialog import (
     TrueDialogApiError,
     TrueDialogConfig,
@@ -47,15 +54,33 @@ def _client():
     return config, truedialog_client(config)
 
 
-def _send(client, request):
-    """Send one text and describe what TrueDialog accepted."""
+def _send(client, request, log=None, reminder_id=None):
+    """Send one text, unless this reminder has already gone out.
+
+    The id is recorded only after TrueDialog accepts the text, so a failure
+    anywhere earlier leaves no trace and the retry sends it. See sent_log
+    for why that ordering is the safe one here.
+    """
+    log = sent_log() if log is None else log
+    reminder_id = request.get("reminder_id") or reminder_id
+
+    if reminder_id and log.already_sent(reminder_id):
+        print(f"reminder {reminder_id} was already sent; not sending it again")
+        return {"sent": False, "duplicate": True, "reminder_id": reminder_id}
+
     result = client.send_message(request["to"], request["message"])
-    return {
+    if reminder_id:
+        log.record(reminder_id)
+
+    sent = {
         "sent": True,
         "action_id": result.action_id,
         "status": result.status,
         "targets": list(result.targets),
     }
+    if reminder_id:
+        sent["reminder_id"] = reminder_id
+    return sent
 
 
 def _run(event):
@@ -128,11 +153,14 @@ def _handle_sqs(event):
     print(f"request: {len(records)} queue message(s) from {queue}")
 
     _, client = _client()
+    log = sent_log()
     failures = []
     for record in records:
         message_id = record.get("messageId")
         try:
-            _send(client, _queue_request(record))
+            # Without a reminder_id of its own, the SQS message id still
+            # makes redelivery of this exact message a no-op.
+            _send(client, _queue_request(record), log=log, reminder_id=message_id)
         except Exception as error:
             print(f"queue message {message_id} failed: {_reason(error)}")
             failures.append({"itemIdentifier": message_id})

@@ -283,6 +283,29 @@ def test_sender_is_fed_by_an_outbox_queue_with_dead_letters():
     assert "VpcConfig" not in sender_resource["Properties"]
 
 
+def test_sent_reminders_are_remembered_so_a_retry_does_not_text_twice():
+    _, reminder = synth(local=False)
+    sender_id, sender_resource = sender(reminder)
+
+    ((table_id, table),) = reminder.find_resources("AWS::DynamoDB::Table").items()
+    props = table["Properties"]
+    assert props["KeySchema"] == [{"AttributeName": "reminder_id", "KeyType": "HASH"}]
+    assert props["BillingMode"] == "PAY_PER_REQUEST"
+    # Rows must expire on their own; nobody is going to prune this table.
+    assert props["TimeToLiveSpecification"] == {
+        "AttributeName": "expires_at",
+        "Enabled": True,
+    }
+
+    env = sender_resource["Properties"]["Environment"]["Variables"]
+    assert env["SENT_LOG_TABLE"] == {"Ref": table_id}
+    assert any(
+        {"Fn::GetAtt": [table_id, "Arn"]} in resources
+        for resources in statements_granting(reminder, "dynamodb:PutItem")
+    )
+    reminder.has_output("SentRemindersTable", {"Value": {"Ref": table_id}})
+
+
 def test_one_queue_record_per_invocation():
     """Pinned deliberately. The sender is not idempotent, so a batch larger
     than one would let a single crash resend every text already handed to

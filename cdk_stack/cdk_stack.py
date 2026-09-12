@@ -8,10 +8,12 @@ from aws_cdk import (
     CfnOutput,
     CustomResource,
     Duration,
+    RemovalPolicy,
     SecretValue,
     Stack,
     aws_ec2,
     aws_lambda,
+    aws_dynamodb,
     aws_lambda_event_sources,
     aws_secretsmanager,
     aws_sqs,
@@ -39,6 +41,9 @@ OUTBOX_BATCH_SIZE = 1
 OUTBOX_VISIBILITY_TIMEOUT = Duration.minutes(12)
 # Receives before a message moves to the dead letter queue.
 OUTBOX_DELIVERY_ATTEMPTS = 3
+# How long a sent reminder id is remembered. Long enough that no retry or
+# redelivery can outlive it, short enough that the table stays small.
+SENT_LOG_RETENTION = Duration.days(30)
 
 
 class CourtReminderStack(Stack):
@@ -102,6 +107,8 @@ class CourtReminderStack(Stack):
         api_key = self._sender_api_key()
         api_key.grant_read(sender)
         sender.add_environment("SENDER_API_KEY_SECRET_ID", api_key.secret_arn)
+
+        self._sent_log(sender)
 
         url = sender.add_function_url(auth_type=aws_lambda.FunctionUrlAuthType.NONE)
         CfnOutput(
@@ -172,6 +179,38 @@ class CourtReminderStack(Stack):
             value=dead_letters.queue_url,
             description="Where a queue message lands after "
             f"{OUTBOX_DELIVERY_ATTEMPTS} failed attempts",
+        )
+
+    def _sent_log(self, sender: lp.PythonFunction) -> None:
+        """Reminder ids already texted, so a retry does not text twice.
+
+        The outbox queue delivers at least once, and a text TrueDialog has
+        accepted can still be retried when its response fails to reach us.
+        The sender writes an id here only after TrueDialog accepts, and
+        checks it before sending.
+
+        Pay-per-request because the traffic is a handful of reads and writes
+        a day, which costs cents a month and needs no capacity planning.
+        Rows expire on their own, so the table never needs tending.
+        """
+        table = aws_dynamodb.Table(
+            self,
+            "CourtBotSentReminders",
+            partition_key=aws_dynamodb.Attribute(
+                name="reminder_id", type=aws_dynamodb.AttributeType.STRING
+            ),
+            billing_mode=aws_dynamodb.BillingMode.PAY_PER_REQUEST,
+            time_to_live_attribute="expires_at",
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        table.grant_read_write_data(sender)
+        sender.add_environment("SENT_LOG_TABLE", table.table_name)
+        CfnOutput(
+            self,
+            "SentRemindersTable",
+            value=table.table_name,
+            description="Reminder ids already texted; rows expire after "
+            f"{SENT_LOG_RETENTION.to_days()} days",
         )
 
     def _truedialog_secret(self) -> aws_secretsmanager.Secret:

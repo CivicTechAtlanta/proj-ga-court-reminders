@@ -368,3 +368,99 @@ def test_records_from_other_event_sources_are_not_treated_as_queue_messages(clie
     # Falls through to the readiness report rather than silently doing nothing.
     assert json.loads(response["body"])["sent"] is False
     assert client.sent == []
+
+
+# ------------------------------------------------------------- deduplication
+
+
+class FakeLog:
+    """Stands in for the DynamoDB-backed sent log."""
+
+    def __init__(self, already=()):
+        self.already = {str(i) for i in already}
+        self.recorded = []
+
+    def already_sent(self, reminder_id):
+        return str(reminder_id) in self.already
+
+    def record(self, reminder_id):
+        self.recorded.append(str(reminder_id))
+        self.already.add(str(reminder_id))
+
+
+@pytest.fixture
+def log(monkeypatch):
+    fake = FakeLog()
+    monkeypatch.setattr(message_sender, "sent_log", lambda: fake)
+    return fake
+
+
+def test_redelivering_the_same_queue_message_does_not_text_twice(client, log):
+    """The SQS message id alone is enough, with no help from the producer."""
+    event = sqs_event(SEND, message_ids=["msg-a"])
+
+    first = message_sender.handler(event, None)
+    second = message_sender.handler(event, None)
+
+    assert first == {"batchItemFailures": []}
+    assert second == {"batchItemFailures": []}  # still a success, so SQS deletes it
+    assert client.sent == [("(404) 555-0142", "See you in court.")]
+    assert log.recorded == ["msg-a"]
+
+
+def test_a_reminder_id_in_the_body_beats_the_queue_message_id(client, log):
+    """Two different deliveries of the same reminder are still one text."""
+    body = dict(SEND, reminder_id="hearing-42")
+
+    message_sender.handler(sqs_event(body, message_ids=["msg-a"]), None)
+    message_sender.handler(sqs_event(body, message_ids=["msg-b"]), None)
+
+    assert len(client.sent) == 1
+    assert log.recorded == ["hearing-42"]
+
+
+def test_nothing_is_recorded_when_the_send_fails(client, log):
+    """Otherwise a failed reminder would be suppressed on the retry and
+    never reach anyone."""
+    client.send_message = lambda to, message: (_ for _ in ()).throw(
+        TrueDialogApiError(500, {"message": "boom"}, "POST", "/x")
+    )
+
+    response = message_sender.handler(sqs_event(SEND, message_ids=["msg-a"]), None)
+
+    assert response == {"batchItemFailures": [{"itemIdentifier": "msg-a"}]}
+    assert log.recorded == []
+
+
+def test_a_duplicate_is_reported_rather_than_silently_dropped(client, log):
+    log.already.add("hearing-42")
+    body = dict(SEND, reminder_id="hearing-42")
+
+    response = message_sender.handler(http_event(body=body), None)
+
+    assert response["statusCode"] == 200
+    assert body_of(response) == {
+        "sent": False,
+        "duplicate": True,
+        "reminder_id": "hearing-42",
+    }
+    assert client.sent == []
+
+
+def test_http_without_a_reminder_id_sends_every_time(client, log):
+    """A developer curling twice means it; only an id asks for suppression."""
+    message_sender.handler(http_event(body=SEND), None)
+    message_sender.handler(http_event(body=SEND), None)
+
+    assert len(client.sent) == 2
+    assert log.recorded == []
+
+
+def test_a_successful_send_reports_the_id_it_recorded(client, log):
+    body = dict(SEND, reminder_id="hearing-42")
+
+    response = message_sender.handler(http_event(body=body), None)
+
+    assert body_of(response)["sent"] is True
+    assert body_of(response)["reminder_id"] == "hearing-42"
+    assert log.recorded == ["hearing-42"]
