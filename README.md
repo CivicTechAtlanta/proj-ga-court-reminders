@@ -123,12 +123,16 @@ Local Lambdas are ready. Run: make local-invoke FUNCTION=CourtBotMain EVENT=scri
 
 ### Step 5: Try it
 
-Invoke the main Lambda, which queries the database for hearings due for a
-reminder and returns them as JSON (11 of them right after a start):
+Invoke the main Lambda, which asks the database who has a hearing seven,
+three and one day out and reports the reminders due for each (six, two and
+one right after a start):
 
 ```bash
-make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
+make local-invoke FUNCTION=CourtBotMain
 ```
+
+It queues nothing while the message copy is still placeholder text; see
+[The daily reminder run](#the-daily-reminder-run).
 
 Run the canonical seven-day hearing query against the database (expect
 `(11 rows)`):
@@ -209,7 +213,7 @@ After changing Lambda code, redeploy and invoke by CDK construct name:
 
 ```bash
 make local-deploy
-make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
+make local-invoke FUNCTION=CourtBotMain
 ```
 
 The response and any function error print in your terminal. `EVENT` is
@@ -431,8 +435,9 @@ so a reminder reaches the sender the same way by either route:
 {"to": "+14045550142", "message": "See you in court Thursday."}
 ```
 
-Nothing produces messages yet. `CourtBotMain` will once the reminder copy has
-a home; until then, put one on the queue by hand:
+`CourtBotMain` fills it on a daily schedule (see
+[The daily reminder run](#the-daily-reminder-run)). To put one on by hand
+instead:
 
 ```bash
 aws sqs send-message --region us-east-2 --queue-url <CourtBotOutboxUrl> \
@@ -454,6 +459,41 @@ make local-invoke FUNCTION=CourtBotMessageSender EVENT=scripts/events/sqs-send.j
 
 That file carries its own recipient, the reserved `+1 404 555 0142`, so edit
 it before expecting a text. It does not consult `.env`.
+
+#### The daily reminder run
+
+`CourtBotMain` is the producer: once a day it asks the court database who has
+a hearing seven, three and one day out, turns each into a text, and puts it on
+the outbox queue. `CourtBotDailyReminders`, an EventBridge rule, is the only
+thing that invokes it.
+
+```
+EventBridge -> CourtBotMain -> CourtBotOutbox -> CourtBotMessageSender
+```
+
+The message copy lives in `lambda/reminders/thresholds.py`, one class per
+threshold with one `message()` each. Everything around it -- the query window,
+phone normalization, the ids, batching and queueing -- is in
+`lambda/reminders/logic.py` and is the same for all three.
+
+**Nothing is texted yet.** The copy is placeholder text marked `[DRAFT]`, and
+the stack deploys with `REMINDERS_DRY_RUN` set, so a run generates the
+reminders, reports them, and queues nothing. Clearing that constant in
+`cdk_stack.py` is the switch that starts texting people.
+
+Run one threshold by hand, or force a dry run whatever the stack says:
+
+```bash
+make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/reminder-run.json
+```
+
+Running twice in a day is safe. Every message carries a stable `reminder_id`,
+so the second run queues ids the sender has already texted and the sender
+drops them. The id also collapses the same phone number stored in two
+formats, which the reminder query's `DISTINCT` cannot.
+
+The schedule is `cron(0 13 * * ? *)`. EventBridge cron is always UTC, so that
+is 8am in Georgia in winter and 9am in summer.
 
 Locally, put `TRUEDIALOG_API_KEY`, `TRUEDIALOG_API_SECRET`, and
 `TRUEDIALOG_ACCOUNT_ID` in `.env` (see `.template.env`; `TRUEDIALOG_CHANNEL_ID`

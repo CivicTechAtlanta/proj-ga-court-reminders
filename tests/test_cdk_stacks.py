@@ -43,19 +43,21 @@ def functions(template):
 
 
 def assert_endpoints(database):
-    """Secrets Manager (interface, for the credentials) and S3 (gateway, for
-    the seed Lambda's answer to CloudFormation): the isolated subnets have no
-    other route to either."""
+    """The three routes out of the isolated subnets: Secrets Manager for the
+    credentials, SQS for the reminders CourtBotMain queues, and S3 for the
+    seed Lambda's answer to CloudFormation. There is no other way out."""
     endpoints = database.find_resources("AWS::EC2::VPCEndpoint")
     by_type = {}
     for resource in endpoints.values():
         props = resource["Properties"]
-        by_type[props.get("VpcEndpointType", "Gateway")] = json.dumps(
-            props["ServiceName"]
+        by_type.setdefault(props.get("VpcEndpointType", "Gateway"), []).append(
+            json.dumps(props["ServiceName"])
         )
     assert set(by_type) == {"Interface", "Gateway"}, by_type
-    assert "secretsmanager" in by_type["Interface"]
-    assert ".s3" in by_type["Gateway"]
+    interfaces = " ".join(by_type["Interface"])
+    assert "secretsmanager" in interfaces, interfaces
+    assert ".sqs" in interfaces, interfaces
+    assert ".s3" in " ".join(by_type["Gateway"])
 
 
 # ---------------------------------------------------------------- AWS mode
@@ -157,6 +159,26 @@ def secret_string(secret):
     if isinstance(value, str):
         return value
     return "".join(value["Fn::Join"][1])
+
+
+def producer(template):
+    """Logical id and resource of the CourtBotMain function."""
+    ((logical_id, resource),) = [
+        (logical_id, resource)
+        for logical_id, resource in functions(template).items()
+        if resource["Properties"]["Handler"] == "main.handler"
+    ]
+    return logical_id, resource
+
+
+def outbox_id(template):
+    """Logical id of the outbox queue, which is not the dead letter queue."""
+    (found,) = [
+        logical_id
+        for logical_id in template.find_resources("AWS::SQS::Queue")
+        if logical_id.startswith("CourtBotOutbox") and "Dead" not in logical_id
+    ]
+    return found
 
 
 def sender(template):
@@ -420,3 +442,63 @@ def test_database_stack_rejects_nothing_but_exposes_engine_and_flags():
     assert CourtDatabaseStack(app, "A", local=True).engine == "postgres"
     assert CourtDatabaseStack(app, "B").engine == "sqlserver"
     assert database_module.CourtDatabaseStack(app, "C", local=False).local is False
+
+
+# ------------------------------------------------- the daily reminder run
+
+
+def test_the_producer_queues_reminders_on_a_daily_schedule():
+    """Nothing else invokes CourtBotMain, so this rule is the only thing
+    that makes a reminder happen."""
+    _, reminder = synth(local=False)
+    producer_id, _ = producer(reminder)
+
+    reminder.has_resource_properties(
+        "AWS::Events::Rule",
+        {
+            "ScheduleExpression": f"cron(0 {reminder_module.DAILY_RUN_HOUR_UTC} * * ? *)",
+            "State": "ENABLED",
+            "Targets": Match.array_with(
+                [Match.object_like({"Arn": {"Fn::GetAtt": [producer_id, "Arn"]}})]
+            ),
+        },
+    )
+
+
+def test_the_producer_may_send_to_the_outbox_and_knows_where_it_is():
+    _, reminder = synth(local=False)
+    producer_id, producer_resource = producer(reminder)
+    queue_id = outbox_id(reminder)
+
+    env = producer_resource["Properties"]["Environment"]["Variables"]
+    assert env["OUTBOX_QUEUE_URL"] == {"Ref": queue_id}
+    assert any(
+        {"Fn::GetAtt": [queue_id, "Arn"]} in resources
+        for resources in statements_granting(reminder, "sqs:SendMessage")
+    )
+
+
+def test_the_producer_queues_nothing_while_the_copy_is_a_draft():
+    """The copy in reminders/thresholds.py is placeholder text. Clearing this
+    flag is the switch that starts texting people, and is meant to be a
+    reviewed change rather than a console toggle."""
+    _, reminder = synth(local=False)
+    _, producer_resource = producer(reminder)
+
+    assert reminder_module.REMINDERS_DRY_RUN == "true"
+    env = producer_resource["Properties"]["Environment"]["Variables"]
+    assert env["REMINDERS_DRY_RUN"] == "true"
+
+
+def test_the_producer_stays_in_the_vpc_for_the_database():
+    """Unlike the sender: it needs the query, so it reaches SQS through the
+    interface endpoint instead of the internet."""
+    _, reminder = synth(local=False)
+    _, producer_resource = producer(reminder)
+
+    assert "VpcConfig" in producer_resource["Properties"]
+
+
+def test_the_local_stack_schedules_the_same_daily_run():
+    _, reminder = synth(local=True)
+    reminder.resource_count_is("AWS::Events::Rule", 1)
