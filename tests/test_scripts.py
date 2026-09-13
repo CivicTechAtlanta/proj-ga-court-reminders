@@ -2,6 +2,7 @@
 
 import pytest
 
+import env_file
 import local_cdk_deploy
 import local_cleanup
 import local_db_url
@@ -108,9 +109,9 @@ def test_db_url_resolves_resources_through_the_stack():
         local_db_url._physical_id(resources, "AWS::RDS::DBInstance", "Missing")
 
 
-def test_local_deploy_reads_dotenv_values(tmp_path):
-    env_file = tmp_path / ".env"
-    env_file.write_text(
+def test_env_file_reads_key_value_pairs(tmp_path):
+    path = tmp_path / ".env"
+    path.write_text(
         "# TrueDialog\n"
         "TRUEDIALOG_API_KEY=abc\n"
         'TRUEDIALOG_API_SECRET="s3cr=3t"\n'
@@ -120,20 +121,20 @@ def test_local_deploy_reads_dotenv_values(tmp_path):
         "export FOO='bar'\n"
         "not a setting\n"
     )
-    assert local_cdk_deploy._dotenv(env_file) == {
+    assert env_file.read(path) == {
         "TRUEDIALOG_API_KEY": "abc",
         "TRUEDIALOG_API_SECRET": "s3cr=3t",
         "TRUEDIALOG_ACCOUNT_ID": "777",
         "EMPTY": "",
         "FOO": "bar",
     }
-    assert local_cdk_deploy._dotenv(tmp_path / "missing") == {}
+    assert env_file.read(tmp_path / "missing") == {}
 
 
 def test_local_deploy_lets_the_shell_override_dotenv(monkeypatch, tmp_path):
-    env_file = tmp_path / ".env"
-    env_file.write_text("TRUEDIALOG_API_KEY=from-file\nTRUEDIALOG_ACCOUNT_ID=777\n")
-    monkeypatch.setattr(local_cdk_deploy, "ENV_FILE", env_file)
+    path = tmp_path / ".env"
+    path.write_text("TRUEDIALOG_API_KEY=from-file\nTRUEDIALOG_ACCOUNT_ID=777\n")
+    monkeypatch.setattr(env_file, "ENV_FILE", path)
     monkeypatch.setenv("TRUEDIALOG_API_KEY", "from-shell")
     # Stated rather than assumed: a developer running this with a real .env
     # already loaded would otherwise see their own value win.

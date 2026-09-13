@@ -523,3 +523,14 @@ def test_an_invalid_number_is_not_echoed_into_the_error():
 )
 def test_mask_keeps_at_most_the_last_four(raw, expected):
     assert mask(raw) == expected
+
+
+def test_the_suite_cannot_reach_an_external_service():
+    """The guard in conftest is what keeps a stray test from texting someone
+    for real; this fails if it is ever removed."""
+    import socket
+
+    with pytest.raises(AssertionError, match="must not reach outside"):
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(
+            ("api.truedialog.com", 443)
+        )

@@ -2,6 +2,7 @@
 
 .PHONY: help setup synth db-url db-psql db-verify db-reset lint format \
 	requirements doctor local-up local-deploy local-start local-invoke \
+	truedialog-check \
 	local-bootstrap local-down local-reset
 
 ## List the supported development commands
@@ -34,6 +35,10 @@ db-verify:
 ## Re-seed the court database in Floci, re-anchoring the date-relative fixtures
 db-reset:
 	$(LOCAL_AWS_ENV) uv run --with boto3==1.40.3 python scripts/local_invoke.py CourtBotDatabaseLoader
+
+## Check the TrueDialog credentials in .env; add TO=+1... to send one real text
+truedialog-check:
+	uv run python scripts/truedialog_check.py $(if $(TO),--send "$(TO)",)
 
 ## Run the repository Ruff checks
 lint:

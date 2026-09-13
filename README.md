@@ -344,15 +344,15 @@ AWS. Hotswap deploys skip secret changes, so after editing those values run
 
 ```bash
 make local-invoke FUNCTION=CourtBotMessageSender
-echo "{\"to\": \"$(grep '^TRUEDIALOG_TEST_NUMBER=' .env | cut -d= -f2-)\", \"message\": \"Hello from GA Court Reminders\"}" > /tmp/sms.json
+echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
 make local-invoke FUNCTION=CourtBotMessageSender EVENT=/tmp/sms.json
 ```
 
-Note where each route takes its destination from, because only one of them
-reads `.env`. `TRUEDIALOG_TEST_NUMBER` drives the integration tests and
-nothing else; Insomnia uses its own `test_number` variable, and an invoke or
-a `curl` uses whatever `to` is in the event file or command. Setting the
-variable in `.env` does not redirect the other two.
+Every route takes its destination from the request, never from `.env`:
+Insomnia from its own `test_number` variable, an invoke or a `curl` from the
+`to` field, and `make truedialog-check` from `TO`. The Lambda has no
+configured recipient at all, which is why a message without one fails
+instead of texting somebody unexpected.
 
 In AWS the TrueDialog secret is created with empty values, and its ARN is the
 `TrueDialogSecretArn` stack output. Fill it in once after the first deploy;
@@ -372,12 +372,23 @@ compromise: production has to run every Lambda inside the VPC. See
 [ADR 004](docs/adr/004-text-sender-runs-outside-the-vpc.md) for the reasoning
 and what the two shapes cost.
 
-The integration tests skip without credentials. With them, `ping` and account
-checks run; a real text is sent only when `TRUEDIALOG_TEST_NUMBER` is set:
+Nothing in the test suite contacts TrueDialog. Tests must not reach an
+external service or spend message credit, so the one command that can text a
+real person is separate and deliberate:
 
 ```bash
-uv run --group integration pytest tests/test_truedialog_integration.py -v -rs
+make truedialog-check
 ```
+
+That checks the credentials in `.env` against the live account and sends
+nothing. To send one real text, name the recipient:
+
+```bash
+make truedialog-check TO=+14045550142
+```
+
+The recipient is an argument rather than a setting, so no configured value
+can quietly become the destination.
 
 ### Checks
 

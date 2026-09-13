@@ -24,9 +24,6 @@ dev = [
     "pytest",
     "ruff",
 ]
-integration = [
-    "python-dotenv",
-]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -34,7 +31,6 @@ markers = [
     "integration_twilio: Twilio SMS integration tests (require credentials)",
     "integration_azure: Azure Functions integration tests (require running function host)",
     "integration_court_db: local court DB integration tests (require make db-up)",
-    "integration_truedialog: TrueDialog SMS integration tests (require TRUEDIALOG_* credentials)",
 ]
 
 [tool.hatch.build.targets.wheel]
