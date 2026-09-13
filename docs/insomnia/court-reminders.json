@@ -9,7 +9,7 @@
       "_type": "workspace",
       "parentId": null,
       "name": "GA Court Reminders",
-      "description": "The court-reminder text sender (CourtBotMessageSender) behind its Lambda function URL.\n\nPick an environment before sending, then fill in sender_url and api_key:\n  Dev (AWS)      SenderUrl and SenderApiKeySecretArn stack outputs\n  Local (Floci)  the SenderUrl output of the local stack; the key is always local-dev-key\n\nRead the outputs with:\n  aws cloudformation describe-stacks --region us-east-2 \\\n    --stack-name CourtReminderStack --query 'Stacks[0].Outputs' --output table\n  aws secretsmanager get-secret-value --region us-east-2 \\\n    --secret-id <SenderApiKeySecretArn> --query SecretString --output text\n\nThe dev key is a real credential. Keep it out of git: either fill it into a private environment (Insomnia excludes those from exports) or do not commit your filled-in copy of this file.",
+      "description": "The court-reminder text sender (CourtBotMessageSender) behind its Lambda function URL.\n\nPick an environment before sending, then fill in sender_url, api_key and\ntest_number. All three are blank on purpose: test_number is the phone that\nreceives the text, and a blank one comes back as HTTP 400 rather than\nquietly texting somebody else. Insomnia does not read the repository .env,\nso TRUEDIALOG_TEST_NUMBER there has no effect here.\n\n  Dev (AWS)      SenderUrl and SenderApiKeySecretArn stack outputs\n  Local (Floci)  the SenderUrl output of the local stack; the key is always local-dev-key\n\nRead the outputs with:\n  aws cloudformation describe-stacks --region us-east-2 \\\n    --stack-name CourtReminderStack --query 'Stacks[0].Outputs' --output table\n  aws secretsmanager get-secret-value --region us-east-2 \\\n    --secret-id <SenderApiKeySecretArn> --query SecretString --output text\n\nThe dev key is a real credential. Keep it out of git: either fill it into a private environment (Insomnia excludes those from exports) or do not commit your filled-in copy of this file.",
       "scope": "collection"
     },
     {
@@ -20,7 +20,7 @@
       "data": {
         "sender_url": "",
         "api_key": "",
-        "test_number": "+14045550142",
+        "test_number": "",
         "message": "Hello from GA Court Reminders"
       },
       "dataPropertyOrder": {
@@ -43,7 +43,7 @@
       "data": {
         "sender_url": "",
         "api_key": "",
-        "test_number": "+14045550142"
+        "test_number": ""
       },
       "dataPropertyOrder": {
         "&": [
@@ -64,7 +64,7 @@
       "data": {
         "sender_url": "",
         "api_key": "local-dev-key",
-        "test_number": "+14045550142"
+        "test_number": ""
       },
       "dataPropertyOrder": {
         "&": [

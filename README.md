@@ -294,8 +294,9 @@ the TrueDialog secret is still empty.
 
 [docs/insomnia/court-reminders.json](docs/insomnia/court-reminders.json) is an
 [Insomnia](https://insomnia.rest/) collection covering those calls: import it,
-pick the `Dev (AWS)` or `Local (Floci)` environment, and fill in `sender_url`
-and `api_key`. The dev key is a real credential, so put it in a private
+pick the `Dev (AWS)` or `Local (Floci)` environment, and fill in `sender_url`,
+`api_key` and `test_number`. All three ship blank, so a request before they
+are set fails rather than texting a stranger; Insomnia cannot see `.env`. The dev key is a real credential, so put it in a private
 environment (Insomnia leaves those out of exports) rather than committing a
 filled-in copy.
 
@@ -330,6 +331,9 @@ sample SQS event:
 make local-invoke FUNCTION=CourtBotMessageSender EVENT=scripts/events/sqs-send.json
 ```
 
+That file carries its own recipient, the reserved `+1 404 555 0142`, so edit
+it before expecting a text. It does not consult `.env`.
+
 Locally, put `TRUEDIALOG_API_KEY`, `TRUEDIALOG_API_SECRET`, and
 `TRUEDIALOG_ACCOUNT_ID` in `.env` (see `.template.env`; `TRUEDIALOG_CHANNEL_ID`
 defaults to TrueDialog's channel 22). `make local-deploy` copies them into the
@@ -340,9 +344,15 @@ AWS. Hotswap deploys skip secret changes, so after editing those values run
 
 ```bash
 make local-invoke FUNCTION=CourtBotMessageSender
-echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
+echo "{\"to\": \"$(grep '^TRUEDIALOG_TEST_NUMBER=' .env | cut -d= -f2-)\", \"message\": \"Hello from GA Court Reminders\"}" > /tmp/sms.json
 make local-invoke FUNCTION=CourtBotMessageSender EVENT=/tmp/sms.json
 ```
+
+Note where each route takes its destination from, because only one of them
+reads `.env`. `TRUEDIALOG_TEST_NUMBER` drives the integration tests and
+nothing else; Insomnia uses its own `test_number` variable, and an invoke or
+a `curl` uses whatever `to` is in the event file or command. Setting the
+variable in `.env` does not redirect the other two.
 
 In AWS the TrueDialog secret is created with empty values, and its ARN is the
 `TrueDialogSecretArn` stack output. Fill it in once after the first deploy;
