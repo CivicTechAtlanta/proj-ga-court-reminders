@@ -1,6 +1,9 @@
 """Deploy the CDK stacks to the local AWS emulator.
 
 After the first deployment, the script uses faster updates when possible.
+Values from the repository .env file are passed to the synth so that, in
+local mode, CourtReminderStack can copy the TRUEDIALOG_* settings into the
+TrueDialog secret it creates inside Floci.
 """
 
 import os
@@ -9,9 +12,16 @@ import subprocess
 import boto3
 from botocore.exceptions import ClientError
 
+import env_file
+
 
 STACK_NAME = "CourtReminderStack"
 LOCAL_ENDPOINT_URL = "http://localhost:4566"
+
+
+def _deploy_environment():
+    """The shell environment, plus .env values for anything it does not set."""
+    return {**env_file.read(), **os.environ}
 
 
 def _stack_exists():
@@ -54,7 +64,7 @@ def main():
         print("Existing Floci stack found; deploying Lambda changes with CDK hotswap")
     else:
         print("No Floci application stack found; running the initial CDK deployment")
-    subprocess.run(command, check=True)
+    subprocess.run(command, check=True, env=_deploy_environment())
 
 
 if __name__ == "__main__":

@@ -245,6 +245,332 @@ against it must leave identifiers unquoted. See
 Lambdas are built for your machine's CPU architecture (Floci runs them
 natively); in AWS they use Lambda's default x86-64.
 
+### Sending a test text locally
+
+Three routes, easiest first. All of them send real messages to real phones and
+spend TrueDialog credit, so use a number you own.
+
+#### Step 1: put your credentials in place (all routes need this)
+
+```bash
+cp .template.env .env
+```
+
+Open `.env` and fill in three values from your TrueDialog credentials email
+and the TrueDialog portal:
+
+| Variable | Where to find it |
+|---|---|
+| `TRUEDIALOG_API_KEY` | credentials email |
+| `TRUEDIALOG_API_SECRET` | credentials email |
+| `TRUEDIALOG_ACCOUNT_ID` | portal, beside the account name, top right |
+
+Leave `TRUEDIALOG_CHANNEL_ID` at `22`. That is the account's default number.
+`.env` is gitignored; see [Credentials and what never to
+commit](#credentials-and-what-never-to-commit).
+
+#### Route 1: straight through the wrapper (no Docker, no deploy)
+
+Confirm the credentials work. This contacts TrueDialog but sends nothing:
+
+```bash
+make truedialog-check
+```
+
+Expect your account id, the channel, and `credentials accepted`. Then send one
+text to a number you name:
+
+```bash
+make truedialog-check TO=+14045550142
+```
+
+It prints a TrueDialog action id. That identifies the send in the portal and
+in delivery notices. `Active` means TrueDialog accepted and is dispatching; it
+is not a delivery confirmation, so check the handset.
+
+This route skips the Lambda entirely. It runs on your machine, reads `.env`
+directly, and is the quickest way to tell whether a problem is your
+credentials or the infrastructure.
+
+#### Route 2: through the deployed Lambda
+
+This exercises what actually ships: the Lambda reads its credentials from
+Secrets Manager inside Floci, exactly as it will from AWS.
+
+```bash
+make local-start
+```
+
+The first run takes a minute or two, mostly building Lambda bundles. It has
+worked when the output ends with `CourtDatabaseSeedHearings = 11`.
+
+Check the wiring without sending. An empty event makes the sender report
+whether it resolved the secret and whether TrueDialog accepts it:
+
+```bash
+make local-invoke FUNCTION=CourtBotMessageSender
+```
+
+`"credentials_accepted": true` means the whole chain works. Then send:
+
+```bash
+echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
+```
+
+```bash
+make local-invoke FUNCTION=CourtBotMessageSender EVENT=/tmp/sms.json
+```
+
+After changing anything in `.env`, run `make local-reset` rather than
+`make local-deploy`. Hotswap deploys skip secret changes, so a plain deploy
+leaves the old values in place and you will chase a problem that is not there.
+
+#### Route 3: from Insomnia or curl
+
+Import [docs/insomnia/court-reminders.json](docs/insomnia/court-reminders.json),
+select the `Local (Floci)` environment, and ask for the address:
+
+```bash
+make local-sender-url
+```
+
+Set that as `sender_url`, and set `test_number` to your phone. Both ship blank
+so that an unconfigured request fails instead of texting someone unexpected.
+
+Two things differ from the deployed setup, because **Floci does not provision
+Lambda function URLs**. There is no local equivalent of the `SenderUrl` stack
+output; what you get instead is Floci's invoke endpoint, which takes the same
+`{"to", "message"}` body but needs no `x-api-key` and returns the Lambda's
+whole response envelope, with the payload inside `body` as a JSON string. The
+function name also changes on every `make local-reset`, so run the command
+again after one.
+
+Use only the **Sending** folder against Floci. The **Error cases** folder
+describes the function URL's behaviour, which does not exist locally: the two
+wrong-key requests are not refused there, they send a text.
+
+#### When it does not work
+
+| Symptom | Cause |
+|---|---|
+| `not configured: Missing TrueDialog settings` | `.env` is missing or the three values are blank |
+| `503` with the same message | the deployed secret is empty; run `make local-reset` |
+| `credentials_accepted: false` | TrueDialog rejects the key for that account id |
+| `Not a valid US phone number` | the recipient is not ten digits with a valid area code |
+| `502` with a TrueDialog status | TrueDialog refused the send; the channel or opt-in is usually why |
+| Insomnia: `URL using bad/illegal format` | `sender_url` is blank; see route 3 |
+
+A recipient who has never texted your TrueDialog number may be refused on
+opt-in grounds. Texting that number from the handset once clears it.
+
+### Text messages (TrueDialog)
+
+Outbound SMS goes through [TrueDialog](https://api.truedialog.com/docs/). The
+`lambda/truedialog/` package wraps its REST API the way `court_db` wraps the
+database: handlers import only from the package root, settings come from
+environment variables locally and from Secrets Manager when deployed, and the
+HTTP transport is injectable so unit tests never touch the network.
+
+```python
+from truedialog import truedialog_client
+
+result = truedialog_client().send_message("(404) 555-0142", "See you in court.")
+print(result.action_id, result.status)
+```
+
+`send_message` normalizes US phone numbers to E.164, posts a push-campaign
+action over the configured channel, and raises `TrueDialogApiError` (with the
+HTTP status and body) when TrueDialog rejects the request. `ping()` checks
+the credentials without sending anything.
+
+The sender Lambda (`CourtBotMessageSender`) is the one Lambda outside the
+database VPC, so it reaches TrueDialog and Secrets Manager over the internet
+at no cost (the isolated subnets have no route out). It reads its credentials
+from a Secrets Manager secret that `CourtReminderStack` creates, named by
+`TRUEDIALOG_SECRET_ID` (JSON keys `api_key`, `api_secret`, `account_id`,
+`channel_id`).
+
+Developers send texts through the sender's function URL, the `SenderUrl`
+stack output, or by putting a message on the outbox queue described below. The URL is public, so every request must carry the `x-api-key`
+header with the value of the `SenderApiKey` secret (the `SenderApiKeySecretArn`
+output; CloudFormation generates it in AWS, and on Floci it is always
+`local-dev-key`). `GET` reports readiness without sending; `POST` sends one
+text:
+
+```bash
+aws cloudformation describe-stacks --region us-east-2 --stack-name CourtReminderStack \
+  --query "Stacks[0].Outputs" --output table
+aws secretsmanager get-secret-value --region us-east-2 --secret-id <SenderApiKeySecretArn> \
+  --query SecretString --output text
+curl -X POST "<SenderUrl>" -H "x-api-key: <key>" -H "content-type: application/json" \
+  -d '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}'
+```
+
+Errors come back as JSON: 401 for a missing or wrong key, 400 for a bad
+request or phone number, 502 when TrueDialog rejects the send, and 503 while
+the TrueDialog secret is still empty.
+
+[docs/insomnia/court-reminders.json](docs/insomnia/court-reminders.json) is an
+[Insomnia](https://insomnia.rest/) collection covering those calls: import it,
+pick an environment, and fill in `sender_url`, `api_key` and `test_number`.
+All three ship blank, so a request before they are set fails rather than
+texting a stranger; Insomnia cannot see `.env`. For `Dev (AWS)` those come
+from the stack outputs; for `Local (Floci)` see
+[Sending a test text locally](#sending-a-test-text-locally), where the URL is
+different and the error cases do not apply. The dev key is a real credential,
+so put it in a private environment (Insomnia leaves those out of exports)
+rather than committing a filled-in copy.
+
+#### The outbox queue
+
+`CourtReminderStack` also creates an SQS queue, `CourtBotOutboxUrl`, wired to
+the sender. A queue message body is exactly the JSON the function URL accepts,
+so a reminder reaches the sender the same way by either route:
+
+```json
+{"to": "+14045550142", "message": "See you in court Thursday."}
+```
+
+Nothing produces messages yet. `CourtBotMain` will once the reminder copy has
+a home; until then, put one on the queue by hand:
+
+```bash
+aws sqs send-message --region us-east-2 --queue-url <CourtBotOutboxUrl> \
+  --message-body '{"to": "+14045550142", "message": "See you in court Thursday."}'
+```
+
+The sender reports failures per record, so one bad message never re-texts the
+rest of its batch. A message that keeps failing moves to the dead letter
+queue, `CourtBotOutboxDeadLettersUrl`, after three receives, with its payload
+intact. That is the first place to look when a reminder does not arrive;
+the sender's own logs deliberately carry no phone number or message text.
+
+To exercise the queue path locally without a queue, invoke the sender with a
+sample SQS event:
+
+```bash
+make local-invoke FUNCTION=CourtBotMessageSender EVENT=scripts/events/sqs-send.json
+```
+
+That file carries its own recipient, the reserved `+1 404 555 0142`, so edit
+it before expecting a text. It does not consult `.env`.
+
+Locally, put `TRUEDIALOG_API_KEY`, `TRUEDIALOG_API_SECRET`, and
+`TRUEDIALOG_ACCOUNT_ID` in `.env` (see `.template.env`; `TRUEDIALOG_CHANNEL_ID`
+defaults to TrueDialog's channel 22). `make local-deploy` copies them into the
+secret inside Floci, creates the same function URL there (its address is the
+`SenderUrl` output), and the Lambda reads the secret exactly as it will in
+AWS. Hotswap deploys skip secret changes, so after editing those values run
+`make local-reset`. Direct invocations need no key:
+
+```bash
+make local-invoke FUNCTION=CourtBotMessageSender
+echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
+make local-invoke FUNCTION=CourtBotMessageSender EVENT=/tmp/sms.json
+```
+
+Every route takes its destination from the request, never from `.env`:
+Insomnia from its own `test_number` variable, an invoke or a `curl` from the
+`to` field, and `make truedialog-check` from `TO`. The Lambda has no
+configured recipient at all, which is why a message without one fails
+instead of texting somebody unexpected.
+
+In AWS the TrueDialog secret is created with empty values, and its ARN is the
+`TrueDialogSecretArn` stack output. Fill it in once after the first deploy;
+later deploys leave the value alone:
+
+```bash
+aws secretsmanager put-secret-value --region us-east-2 --secret-id <TrueDialogSecretArn> \
+  --secret-string '{"api_key":"...","api_secret":"...","account_id":"...","channel_id":"22"}'
+```
+
+Destroying `CourtReminderStack` deletes both secrets, so the TrueDialog values
+must be entered again after a redeploy from scratch.
+
+The sender is the only Lambda outside the database VPC, which is what gives it
+a route to TrueDialog without paying for a NAT gateway. That is a development
+compromise: production has to run every Lambda inside the VPC. See
+[ADR 004](docs/adr/004-text-sender-runs-outside-the-vpc.md) for the reasoning
+and what the two shapes cost.
+
+Nothing in the test suite contacts TrueDialog. Tests must not reach an
+external service or spend message credit, so the one command that can text a
+real person is separate and deliberate:
+
+```bash
+make truedialog-check
+```
+
+That checks the credentials in `.env` against the live account and sends
+nothing. To send one real text, name the recipient:
+
+```bash
+make truedialog-check TO=+14045550142
+```
+
+The recipient is an argument rather than a setting, so no configured value
+can quietly become the destination.
+
+### Credentials and what never to commit
+
+Four secrets exist. None of them belongs in the repository, and none is in it
+today.
+
+| Secret | Where it lives | Who creates it |
+|---|---|---|
+| TrueDialog API key and secret | `.env` locally, Secrets Manager when deployed | TrueDialog, in your credentials email |
+| Sender API key | Secrets Manager | CloudFormation generates it; `local-dev-key` on Floci |
+| Court database credentials | Secrets Manager | CloudFormation generates them |
+| Your TrueDialog account id | `.env`, Secrets Manager | TrueDialog portal |
+
+The database values in `.template.env` are the exception. `court` / `court`
+are dummy credentials for the throwaway Postgres inside Floci, they are
+documented deliberately, and they reach nothing real.
+
+**Rules that matter in practice.**
+
+`.env` is gitignored and must stay that way. Check before you commit rather
+than after:
+
+```bash
+git status --short
+```
+
+If `.env` ever appears in that output, something has changed `.gitignore`.
+Stop and fix that before committing.
+
+Never paste a key into a pull request, an issue, a Slack message, or a
+screenshot. If you need to show that something is set, show its length or its
+last four characters.
+
+The Insomnia collection ships with `api_key` blank on purpose. Insomnia
+excludes **private** environments from exports, so put a real key in a private
+environment. A filled-in collection exported normally carries the key in
+plain text.
+
+Never paste a credential into a command you will run, because your shell keeps
+history. `make truedialog-check` reads `.env` rather than taking the key as an
+argument for exactly this reason.
+
+Deployed secrets are readable by anyone with AWS access to the account, which
+is the intended design: the Lambda reads them at runtime. Read one back with
+the CLI when you need it, rather than storing a second copy anywhere.
+
+**If a credential does leak.** Rotate it first, then clean up. For TrueDialog
+that means asking them to reissue the key and secret, and updating `.env` and
+the deployed secret. Deleting the commit is not enough: anything pushed to
+GitHub should be assumed to have been seen, and rewriting published history
+does not recall it.
+
+To check that nothing sensitive is about to be committed, search your staged
+changes for the values you know are secret:
+
+```bash
+git diff --cached | grep -i -E "api[_-]?key|secret|password|token"
+```
+
+That catches the obvious cases. It is a habit, not a guarantee.
+
 ### Checks
 
 ```bash
@@ -264,7 +590,9 @@ for Floci.
 The same two stacks deploy: `CourtDatabaseStack` becomes RDS SQL Server
 Express (instance `courtbot-dev`) in an isolated-subnet VPC with generated
 credentials in Secrets Manager, and `CourtReminderStack` places the Lambdas
-in that VPC. The instance is not reachable from outside the VPC.
+in that VPC, except the text sender, which runs outside it behind a public
+function URL (see [Text messages](#text-messages-truedialog)). The instance
+is not reachable from outside the VPC.
 
 Add project dependencies with `uv add <dependency>`, then run
 `make requirements` to refresh the exported deployment requirements.
