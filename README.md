@@ -247,31 +247,71 @@ natively); in AWS they use Lambda's default x86-64.
 
 ### Sending a test text locally
 
-The shortest path needs no Docker and no deploy. Put your TrueDialog
-credentials in `.env`, then ask the wrapper to send one:
+Three routes, easiest first. All of them send real messages to real phones and
+spend TrueDialog credit, so use a number you own.
+
+#### Step 1: put your credentials in place (all routes need this)
 
 ```bash
-cp .template.env .env      # then fill in the three TRUEDIALOG_ values
+cp .template.env .env
 ```
+
+Open `.env` and fill in three values from your TrueDialog credentials email
+and the TrueDialog portal:
+
+| Variable | Where to find it |
+|---|---|
+| `TRUEDIALOG_API_KEY` | credentials email |
+| `TRUEDIALOG_API_SECRET` | credentials email |
+| `TRUEDIALOG_ACCOUNT_ID` | portal, beside the account name, top right |
+
+Leave `TRUEDIALOG_CHANNEL_ID` at `22`. That is the account's default number.
+`.env` is gitignored; see [Credentials and what never to
+commit](#credentials-and-what-never-to-commit).
+
+#### Route 1: straight through the wrapper (no Docker, no deploy)
+
+Confirm the credentials work. This contacts TrueDialog but sends nothing:
 
 ```bash
 make truedialog-check
 ```
 
-That checks the credentials against the live account and sends nothing. Name
-a recipient and it sends one real text, which costs message credit and
-reaches a real phone:
+Expect your account id, the channel, and `credentials accepted`. Then send one
+text to a number you name:
 
 ```bash
 make truedialog-check TO=+14045550142
 ```
 
-To go through the deployed Lambda instead, which exercises the secret and the
-handler the way AWS will, start the local stack and invoke it with an event:
+It prints a TrueDialog action id. That identifies the send in the portal and
+in delivery notices. `Active` means TrueDialog accepted and is dispatching; it
+is not a delivery confirmation, so check the handset.
+
+This route skips the Lambda entirely. It runs on your machine, reads `.env`
+directly, and is the quickest way to tell whether a problem is your
+credentials or the infrastructure.
+
+#### Route 2: through the deployed Lambda
+
+This exercises what actually ships: the Lambda reads its credentials from
+Secrets Manager inside Floci, exactly as it will from AWS.
 
 ```bash
 make local-start
 ```
+
+The first run takes a minute or two, mostly building Lambda bundles. It has
+worked when the output ends with `CourtDatabaseSeedHearings = 11`.
+
+Check the wiring without sending. An empty event makes the sender report
+whether it resolved the secret and whether TrueDialog accepts it:
+
+```bash
+make local-invoke FUNCTION=CourtBotMessageSender
+```
+
+`"credentials_accepted": true` means the whole chain works. Then send:
 
 ```bash
 echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
@@ -281,23 +321,47 @@ echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp
 make local-invoke FUNCTION=CourtBotMessageSender EVENT=/tmp/sms.json
 ```
 
-To drive that same Lambda from Insomnia or `curl`, ask for its address:
+After changing anything in `.env`, run `make local-reset` rather than
+`make local-deploy`. Hotswap deploys skip secret changes, so a plain deploy
+leaves the old values in place and you will chase a problem that is not there.
+
+#### Route 3: from Insomnia or curl
+
+Import [docs/insomnia/court-reminders.json](docs/insomnia/court-reminders.json),
+select the `Local (Floci)` environment, and ask for the address:
 
 ```bash
 make local-sender-url
 ```
 
-Floci does not provision Lambda function URLs, so there is no local
-equivalent of the `SenderUrl` output and the collection's `sender_url` must
-be set to what that command prints. It is Floci's invoke endpoint, so it
-takes the same `{"to", "message"}` body, needs no `x-api-key`, and returns
-the Lambda's whole response envelope with the payload inside `body`. The
-function name changes on every `make local-reset`, so ask again after one.
+Set that as `sender_url`, and set `test_number` to your phone. Both ship blank
+so that an unconfigured request fails instead of texting someone unexpected.
 
-Only the **Sending** folder of the Insomnia collection is meaningful against
-Floci. The **Error cases** folder describes the function URL's behaviour,
-which does not exist locally: the two "wrong API key" requests would not be
-refused, they would send a text.
+Two things differ from the deployed setup, because **Floci does not provision
+Lambda function URLs**. There is no local equivalent of the `SenderUrl` stack
+output; what you get instead is Floci's invoke endpoint, which takes the same
+`{"to", "message"}` body but needs no `x-api-key` and returns the Lambda's
+whole response envelope, with the payload inside `body` as a JSON string. The
+function name also changes on every `make local-reset`, so run the command
+again after one.
+
+Use only the **Sending** folder against Floci. The **Error cases** folder
+describes the function URL's behaviour, which does not exist locally: the two
+wrong-key requests are not refused there, they send a text.
+
+#### When it does not work
+
+| Symptom | Cause |
+|---|---|
+| `not configured: Missing TrueDialog settings` | `.env` is missing or the three values are blank |
+| `503` with the same message | the deployed secret is empty; run `make local-reset` |
+| `credentials_accepted: false` | TrueDialog rejects the key for that account id |
+| `Not a valid US phone number` | the recipient is not ten digits with a valid area code |
+| `502` with a TrueDialog status | TrueDialog refused the send; the channel or opt-in is usually why |
+| Insomnia: `URL using bad/illegal format` | `sender_url` is blank; see route 3 |
+
+A recipient who has never texted your TrueDialog number may be refused on
+opt-in grounds. Texting that number from the handset once clears it.
 
 ### Text messages (TrueDialog)
 
@@ -446,6 +510,66 @@ make truedialog-check TO=+14045550142
 
 The recipient is an argument rather than a setting, so no configured value
 can quietly become the destination.
+
+### Credentials and what never to commit
+
+Four secrets exist. None of them belongs in the repository, and none is in it
+today.
+
+| Secret | Where it lives | Who creates it |
+|---|---|---|
+| TrueDialog API key and secret | `.env` locally, Secrets Manager when deployed | TrueDialog, in your credentials email |
+| Sender API key | Secrets Manager | CloudFormation generates it; `local-dev-key` on Floci |
+| Court database credentials | Secrets Manager | CloudFormation generates them |
+| Your TrueDialog account id | `.env`, Secrets Manager | TrueDialog portal |
+
+The database values in `.template.env` are the exception. `court` / `court`
+are dummy credentials for the throwaway Postgres inside Floci, they are
+documented deliberately, and they reach nothing real.
+
+**Rules that matter in practice.**
+
+`.env` is gitignored and must stay that way. Check before you commit rather
+than after:
+
+```bash
+git status --short
+```
+
+If `.env` ever appears in that output, something has changed `.gitignore`.
+Stop and fix that before committing.
+
+Never paste a key into a pull request, an issue, a Slack message, or a
+screenshot. If you need to show that something is set, show its length or its
+last four characters.
+
+The Insomnia collection ships with `api_key` blank on purpose. Insomnia
+excludes **private** environments from exports, so put a real key in a private
+environment. A filled-in collection exported normally carries the key in
+plain text.
+
+Never paste a credential into a command you will run, because your shell keeps
+history. `make truedialog-check` reads `.env` rather than taking the key as an
+argument for exactly this reason.
+
+Deployed secrets are readable by anyone with AWS access to the account, which
+is the intended design: the Lambda reads them at runtime. Read one back with
+the CLI when you need it, rather than storing a second copy anywhere.
+
+**If a credential does leak.** Rotate it first, then clean up. For TrueDialog
+that means asking them to reissue the key and secret, and updating `.env` and
+the deployed secret. Deleting the commit is not enough: anything pushed to
+GitHub should be assumed to have been seen, and rewriting published history
+does not recall it.
+
+To check that nothing sensitive is about to be committed, search your staged
+changes for the values you know are secret:
+
+```bash
+git diff --cached | grep -i -E "api[_-]?key|secret|password|token"
+```
+
+That catches the obvious cases. It is a habit, not a guarantee.
 
 ### Checks
 
