@@ -245,6 +245,60 @@ against it must leave identifiers unquoted. See
 Lambdas are built for your machine's CPU architecture (Floci runs them
 natively); in AWS they use Lambda's default x86-64.
 
+### Sending a test text locally
+
+The shortest path needs no Docker and no deploy. Put your TrueDialog
+credentials in `.env`, then ask the wrapper to send one:
+
+```bash
+cp .template.env .env      # then fill in the three TRUEDIALOG_ values
+```
+
+```bash
+make truedialog-check
+```
+
+That checks the credentials against the live account and sends nothing. Name
+a recipient and it sends one real text, which costs message credit and
+reaches a real phone:
+
+```bash
+make truedialog-check TO=+14045550142
+```
+
+To go through the deployed Lambda instead, which exercises the secret and the
+handler the way AWS will, start the local stack and invoke it with an event:
+
+```bash
+make local-start
+```
+
+```bash
+echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
+```
+
+```bash
+make local-invoke FUNCTION=CourtBotMessageSender EVENT=/tmp/sms.json
+```
+
+To drive that same Lambda from Insomnia or `curl`, ask for its address:
+
+```bash
+make local-sender-url
+```
+
+Floci does not provision Lambda function URLs, so there is no local
+equivalent of the `SenderUrl` output and the collection's `sender_url` must
+be set to what that command prints. It is Floci's invoke endpoint, so it
+takes the same `{"to", "message"}` body, needs no `x-api-key`, and returns
+the Lambda's whole response envelope with the payload inside `body`. The
+function name changes on every `make local-reset`, so ask again after one.
+
+Only the **Sending** folder of the Insomnia collection is meaningful against
+Floci. The **Error cases** folder describes the function URL's behaviour,
+which does not exist locally: the two "wrong API key" requests would not be
+refused, they would send a text.
+
 ### Text messages (TrueDialog)
 
 Outbound SMS goes through [TrueDialog](https://api.truedialog.com/docs/). The
@@ -294,11 +348,14 @@ the TrueDialog secret is still empty.
 
 [docs/insomnia/court-reminders.json](docs/insomnia/court-reminders.json) is an
 [Insomnia](https://insomnia.rest/) collection covering those calls: import it,
-pick the `Dev (AWS)` or `Local (Floci)` environment, and fill in `sender_url`,
-`api_key` and `test_number`. All three ship blank, so a request before they
-are set fails rather than texting a stranger; Insomnia cannot see `.env`. The dev key is a real credential, so put it in a private
-environment (Insomnia leaves those out of exports) rather than committing a
-filled-in copy.
+pick an environment, and fill in `sender_url`, `api_key` and `test_number`.
+All three ship blank, so a request before they are set fails rather than
+texting a stranger; Insomnia cannot see `.env`. For `Dev (AWS)` those come
+from the stack outputs; for `Local (Floci)` see
+[Sending a test text locally](#sending-a-test-text-locally), where the URL is
+different and the error cases do not apply. The dev key is a real credential,
+so put it in a private environment (Insomnia leaves those out of exports)
+rather than committing a filled-in copy.
 
 #### The outbox queue
 
