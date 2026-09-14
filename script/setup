@@ -19,6 +19,14 @@ docker compose up --help | grep -q -- '--wait' && echo "ok: docker compose suppo
 docker info >/dev/null 2>&1 && echo "ok: Docker daemon" || { echo "Docker daemon unavailable. Start Docker Desktop, Docker Engine, or Colima."; exit 1; }
 command -v cdk >/dev/null && echo "ok: AWS CDK CLI" || { echo "missing: AWS CDK CLI"; exit 1; }
 
+if command -v cdk >/dev/null 2>&1; then
+  echo "AWS CDK is already installed: $(cdk --version)"
+else
+  echo "AWS CDK not found; installing..."
+  npm install --global aws-cdk
+  echo "AWS CDK installed: $(cdk --version)"
+fi
+
 uv sync
 
 docker compose up --detach --wait floci
