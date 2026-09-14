@@ -29,7 +29,7 @@ def main():
     args = parser.parse_args()
 
     if os.getenv("AWS_ENDPOINT_URL") != LOCAL_ENDPOINT_URL:
-        raise SystemExit("This helper only reads local Floci. Use `make db-url`.")
+        raise SystemExit("This helper only reads local Floci.")
 
     # Resolve the instance and secret through the stack rather than by
     # listing: a rolled-back update can leave orphaned copies behind in Floci.
@@ -68,7 +68,7 @@ def _physical_id(resources, resource_type, logical_prefix):
     if len(matches) != 1:
         raise SystemExit(
             f"Expected one {resource_type} {logical_prefix}* in {DATABASE_STACK}, "
-            f"found {len(matches)}; run: make local-start"
+            f"found {len(matches)}; run: . script/setup"
         )
     return matches[0]
 

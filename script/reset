@@ -1,0 +1,13 @@
+#!/bin/sh
+set -a
+source .env
+set +a
+
+set -e
+
+docker compose stop floci
+uv run python script_helpers/local_cleanup.py --volumes
+docker compose down --volumes --remove-orphans
+
+
+. script/setup
