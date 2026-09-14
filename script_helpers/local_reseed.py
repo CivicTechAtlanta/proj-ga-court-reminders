@@ -1,8 +1,8 @@
 """Reload the local court database and report what a reminder run will find.
 
-    make db-reset
-    make db-reset PHONE=+14045551234
-    uv run python scripts/local_reseed.py --phone +14045551234
+    . script/db/reset
+    . script/db/reset +14045551234
+    uv run python script_helpers/local_reseed.py --phone +14045551234
 
 Runs the CourtBotDatabaseLoader Lambda in Floci, the same one that seeds the
 database during a deploy: it drops every table and reloads the fixtures with
@@ -13,7 +13,7 @@ until somebody reseeds.
 
 The AWS dev database gets the same treatment every morning from the
 CourtDatabaseDailyReseed rule in cdk_stack.py. This is the laptop
-equivalent, and `make db-reset` runs it.
+equivalent, and `. script/db/reset` runs it.
 
 Everything in the database is destroyed, including anything added by hand.
 
@@ -21,8 +21,8 @@ Everything in the database is destroyed, including anything added by hand.
 time gets that number instead of its reserved 555-01XX one, so one person
 has a hearing seven, three and one day out and can watch all three reminders
 arrive. Every other row keeps its unreachable number. It is an argument
-rather than a setting on purpose, the same rule scripts/truedialog_check.py
-follows, so no stored value can quietly become the destination.
+rather than a setting on purpose, the same rule `. script/sms/verify` follows,
+so no stored value can quietly become the destination.
 
 Exits non-zero when a lead time comes back with no hearings, because a
 reseed that leaves a threshold with nothing to find is not worth testing
@@ -36,7 +36,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # The phone helpers live in the Lambda bundle; import them the way
-# scripts/truedialog_check.py does.
+# script_helpers/truedialog_check.py does.
 sys.path.insert(0, str(REPO_ROOT / "lambda"))
 
 import local_invoke  # noqa: E402

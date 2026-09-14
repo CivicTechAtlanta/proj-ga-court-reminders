@@ -1,0 +1,25 @@
+#!/bin/sh
+# Re-seed the court database in Floci, re-anchoring the 7/3/1 fixture dates.
+#
+#   . script/db/reset                 the fixtures as they ship
+#   . script/db/reset +14045551234    with your own number on the clean case
+#                                     at each reminder lead time, so a
+#                                     reminder run can text you
+#
+# The number is an argument rather than a setting on purpose, the same rule
+# script/sms/verify follows: nothing stored can quietly become the
+# destination. Every other fixture number stays in the unreachable 555-01XX
+# range.
+#
+# No `set -e` here on purpose. These scripts are sourced, so errexit belongs
+# to the caller's shell, and the reseed exits non-zero on the soft result of
+# a lead time having no hearings -- which should report, not close somebody's
+# terminal. The exit status below is the reseed's own either way.
+set -a
+source .env
+set +a
+
+PHONE=$1
+
+uv run --with boto3==1.40.3 python script_helpers/local_reseed.py \
+	${PHONE:+--phone "$PHONE"}

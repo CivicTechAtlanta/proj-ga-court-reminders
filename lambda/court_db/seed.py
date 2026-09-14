@@ -130,8 +130,8 @@ def use_test_phone(config, number, connect=None) -> dict:
     `number` must already be normalized (the caller validates, because the
     message that comes back from a bad one belongs where somebody can read
     it). Passing it per run rather than reading it from configuration is
-    deliberate, and the same rule scripts/truedialog_check.py follows: there
-    is no stored setting that could quietly become the destination.
+    deliberate, and the same rule `. script/sms/verify` follows: there is no
+    stored setting that could quietly become the destination.
 
     Returns the case number rewritten at each lead time.
     """

@@ -6,7 +6,7 @@ Accepted, amended 2026-09-02: the Postgres no longer runs as its own compose
 service. `CourtDatabaseStack` deploys it to Floci as an RDS Postgres instance,
 seeded during `cdk deploy` by the same scripts (now under
 `lambda/court_db/seed/postgres/`), and docker-compose.yml publishes Floci's
-RDS proxy port (7001) so `make db-psql`, GUIs, and the integration tests reach
+RDS proxy port (7001) so `. script/db/psql`, GUIs, and the integration tests reach
 it from the host. The fidelity choices below are unchanged.
 
 ## Context
@@ -55,7 +55,7 @@ Fidelity choices, so the prod query runs near-verbatim (see the translation in
 
 ## Consequences
 
-Easier: `make local-start` gives zero-config prod-shaped data; the prod query needs
+Easier: `. script/setup` gives zero-config prod-shaped data; the prod query needs
 only its date arithmetic translated; fixtures exercise every query filter, so
 the expected result (12 rows seven days out, 13 without DISTINCT) doubles as
 a regression check.
@@ -63,7 +63,7 @@ a regression check.
 More difficult: it is still Postgres, not SQL Server — other T-SQL built-ins
 would need translating, and SQL Server-specific behavior (locking hints,
 collations) is not reproduced. Fixture dates freeze at first start, so the
-7-days-out query goes stale roughly a week later; `make db-reset` re-seeds
+7-days-out query goes stale roughly a week later; `. script/db/reset` re-seeds
 and re-anchors locally, and in AWS a daily EventBridge rule does the same to
 the dev database. And identifier quoting is a standing trap: all SQL
 against this database must leave identifiers unquoted.

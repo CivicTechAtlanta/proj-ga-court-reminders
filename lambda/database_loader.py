@@ -8,7 +8,7 @@ databases only.
 
 Invoking it with an empty event re-runs the seed and returns the summary,
 which is how the fixture dates get re-anchored to today. Two things do that:
-`make db-reset` on a laptop, and the CourtDatabaseDailyReseed EventBridge
+`. script/db/reset` on a laptop, and the CourtDatabaseDailyReseed EventBridge
 rule against the AWS dev database every morning (see cdk_stack.py). The
 summary counts hearings at each reminder lead time, so one look at the run
 says whether every threshold has something to find.
@@ -85,7 +85,7 @@ def _seed(phone=None) -> dict:
     }
     summary["hearings_by_lead_time"] = counts
     # Kept as its own key: the CourtDatabaseSeedHearings stack output and
-    # `make db-verify` both mean the seven-day window specifically, and
+    # `. script/db/verify` both mean the seven-day window specifically, and
     # expect 12 rows right after loading.
     summary["upcoming_hearings"] = counts["7"]
     print(json.dumps(summary))

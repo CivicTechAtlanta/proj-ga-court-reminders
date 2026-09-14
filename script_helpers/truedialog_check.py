@@ -7,10 +7,10 @@ real person is a command somebody types deliberately:
     uv run python scripts/truedialog_check.py                  # checks only
     uv run python scripts/truedialog_check.py --send +14045550142
 
-or through the Makefile:
+or through the script
 
-    make truedialog-check
-    make truedialog-check TO=+14045550142
+    . script/sms/verify
+    . script/sms/verify +14045550142
 
 The recipient is an argument rather than a setting, so there is no
 configured number that could quietly become the destination.
@@ -66,7 +66,7 @@ def main(argv=None):
         if not client.ping():
             print("TrueDialog rejected these credentials for that account")
             return 1
-        print("credentials accepted")
+        print("Trudialog credentials accepted")
 
         if args.send:
             result = client.send_message(args.send, MESSAGE)
@@ -74,7 +74,9 @@ def main(argv=None):
                 f"sent to {mask(args.send)}: action {result.action_id}, {result.status}"
             )
         else:
-            print("nothing sent; pass --send <phone> to text someone")
+            print(
+                "no text sent; pass --send <phone> to trudialog_check.py to send text"
+            )
     except TrueDialogError as error:
         print(f"failed: {error}")
         return 1

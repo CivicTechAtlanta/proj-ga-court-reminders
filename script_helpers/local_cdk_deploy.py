@@ -44,11 +44,11 @@ def _stack_exists():
 
 def main():
     if os.getenv("AWS_ENDPOINT_URL") != LOCAL_ENDPOINT_URL:
-        raise SystemExit(
-            "This helper only runs against local Floci. Use `make local-deploy`."
-        )
+        raise SystemExit("This helper only runs against local Floci.")
 
     command = [
+        "uv",
+        "run",
         "cdk",
         "deploy",
         STACK_NAME,
