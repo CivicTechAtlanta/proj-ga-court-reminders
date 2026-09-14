@@ -129,6 +129,43 @@ def test_seed_custom_resource_is_served_by_the_loader_directly():
     reminder.has_output("CourtDatabaseSeedHearings", {})
 
 
+def loader(template):
+    """Logical id of the CourtBotDatabaseLoader function."""
+    ((logical_id, _),) = [
+        (logical_id, resource)
+        for logical_id, resource in functions(template).items()
+        if resource["Properties"]["Handler"] == "database_loader.handler"
+    ]
+    return logical_id
+
+
+def test_the_dev_database_reseeds_itself_every_morning():
+    """Fixture dates are relative to the day they load, so a week after a
+    deploy nothing sits at the 7/3/1 reminder thresholds and the environment
+    is untestable until somebody reseeds it."""
+    _, reminder = synth(local=False)
+
+    ((rule_id, rule),) = reminder.find_resources("AWS::Events::Rule").items()
+    assert rule["Properties"]["ScheduleExpression"] == (
+        f"cron(0 {reminder_module.RESEED_HOUR_UTC} * * ? *)"
+    )
+    (target,) = rule["Properties"]["Targets"]
+    assert target["Arn"] == {"Fn::GetAtt": [loader(reminder), "Arn"]}
+    # The empty event the loader reads as "seed and return the summary", the
+    # same one `make db-reset` sends; anything else looks like CloudFormation.
+    assert target["Input"] == "{}"
+
+    reminder.has_resource_properties(
+        "AWS::Lambda::Permission",
+        {
+            "Action": "lambda:InvokeFunction",
+            "Principal": "events.amazonaws.com",
+            "SourceArn": {"Fn::GetAtt": [rule_id, "Arn"]},
+        },
+    )
+    reminder.has_output("CourtDatabaseDailyReseedRule", {"Value": {"Ref": rule_id}})
+
+
 def test_the_seed_waits_for_its_log_group():
     """Otherwise the loader's first run creates the group itself and the
     stack fails with "The specified log group already exists"."""
@@ -374,6 +411,14 @@ def test_local_truedialog_secret_is_filled_from_the_environment(monkeypatch):
     _, sender_resource = sender(reminder)
     env = sender_resource["Properties"]["Environment"]["Variables"]
     assert env["TRUEDIALOG_SECRET_ID"] == {"Ref": logical_id}
+
+
+def test_floci_gets_no_daily_reseed():
+    """Nothing schedules a laptop's database at 07:00 UTC, and Floci is not
+    where an EventBridge schedule would be proved anyway. Locally the same
+    reseed is a person running `make db-reset`."""
+    _, reminder = synth(local=True)
+    reminder.resource_count_is("AWS::Events::Rule", 0)
 
 
 def test_local_sender_gets_the_same_url_queue_and_a_fixed_key():

@@ -31,6 +31,21 @@ TABLES = [
     "tblCaseEvent",
 ]
 
+# The clean case the fixtures anchor at each reminder lead time, keyed by days
+# out. One hearing and one cell number each, which is what makes them the
+# rows worth pointing at a real phone (see use_test_phone).
+LADDER_CASES = {7: "CR-2026-000112", 3: "CR-2026-000113", 1: "CR-2026-000114"}
+
+# Identifiers unquoted per ADR 002, and the same %(name)s paramstyle on both
+# engines, so this one statement runs on Postgres and SQL Server alike.
+_SET_LADDER_PHONE = """
+UPDATE dbo.tblPartyPhone
+SET PhoneNumber = %(phone)s
+WHERE PartyID IN (
+    SELECT FirstDefendantID FROM dbo.tblCase WHERE CaseNumber = %(case_number)s
+)
+"""
+
 _GO_LINE = re.compile(r"^[ \t]*GO[ \t]*(?:--.*)?$", re.IGNORECASE | re.MULTILINE)
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -100,3 +115,37 @@ def _ensure_sqlserver_database(config, connect):
 def _count_rows(cursor, table):
     cursor.execute(f"SELECT COUNT(*) FROM dbo.{table}")
     return cursor.fetchall()[0][0]
+
+
+def use_test_phone(config, number, connect=None) -> dict:
+    """Point the reminder ladder's three cases at one real phone number.
+
+    The fixtures otherwise carry nothing but reserved 555-01XX numbers, which
+    cannot ring anybody. Testing the whole path to a handset needs a number
+    that can, so this rewrites the phone row behind the clean case at each
+    lead time -- CR-2026-000112, -000113 and -000114 -- and nothing else.
+    Every dirty row the fixtures exist to exercise is left alone, and one
+    person then has a hearing seven, three and one day out.
+
+    `number` must already be normalized (the caller validates, because the
+    message that comes back from a bad one belongs where somebody can read
+    it). Passing it per run rather than reading it from configuration is
+    deliberate, and the same rule scripts/truedialog_check.py follows: there
+    is no stored setting that could quietly become the destination.
+
+    Returns the case number rewritten at each lead time.
+    """
+    if config.engine not in _ENGINES:
+        raise ValueError(f"No seed scripts for engine {config.engine!r}")
+    connect = connect or _ENGINES[config.engine]
+
+    rewritten = {}
+    with connect(config) as connection:
+        with connection.cursor() as cursor:
+            for days, case_number in LADDER_CASES.items():
+                cursor.execute(
+                    _SET_LADDER_PHONE, {"phone": number, "case_number": case_number}
+                )
+                rewritten[str(days)] = case_number
+        connection.commit()
+    return rewritten

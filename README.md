@@ -124,20 +124,20 @@ Local Lambdas are ready. Run: make local-invoke FUNCTION=CourtBotMain EVENT=scri
 ### Step 5: Try it
 
 Invoke the main Lambda, which queries the database for hearings due for a
-reminder and returns them as JSON (11 of them right after a start):
+reminder and returns them as JSON (12 of them right after a start):
 
 ```bash
 make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
 ```
 
 Run the canonical seven-day hearing query against the database (expect
-`(11 rows)`):
+`(12 rows)`):
 
 ```bash
 make db-verify
 ```
 
-Run the tests. The four Postgres integration tests run against the Floci
+Run the tests. The Postgres integration tests run against the Floci
 database; the SQL Server ones skip unless you point them at a SQL Server:
 
 ```bash
@@ -180,13 +180,59 @@ This stops Floci and removes its helper containers but keeps the data volumes;
 `make local-start` picks up where you left off. Stopping Docker Desktop or
 Colima also works but affects every project using that engine.
 
-If only the fixture dates have gone stale (they are anchored to the day the
-database was seeded, and the seven-day query goes empty about a week later),
-re-seed without rebuilding:
+If only the fixture dates have gone stale, re-seed without rebuilding:
 
 ```bash
 make db-reset
 ```
+
+The fixtures are anchored to the day they load, so a hearing seven days out
+becomes six days out tomorrow and within a week nothing sits at the seven,
+three and one day reminder thresholds. `make db-reset` reloads them and
+reports what each threshold would now find:
+
+```
+hearings the reminder query returns
+  seven days out    12
+  three days out     3
+  one day out        2
+```
+
+A zero on any line means that threshold has nothing to fire on, and the
+script exits non-zero. It reloads every table, so anything you added by hand
+is gone.
+
+#### Seeding your own phone number
+
+Every fixture number is in the reserved 555-01XX range, so a reminder run
+against a fresh seed cannot reach a real handset. To test the whole path to
+your own phone, pass it in:
+
+```bash
+make db-reset PHONE=+14045551234
+```
+
+That rewrites the phone row behind the clean case at each lead time and
+nothing else, so one person — you — has a hearing seven, three and one day
+out:
+
+```
+reminder ladder now points at ***1234
+  seven days out   CR-2026-000112
+  three days out   CR-2026-000113
+  one day out      CR-2026-000114
+```
+
+Any US format works; it is normalized to E.164 before it is written, and
+rejected on the spot if it is not a valid US number. Only the last four
+digits are ever printed, because the same summary goes to CloudWatch in AWS
+and a number ties a person to a court case.
+
+The number is an argument rather than a setting, the same rule
+[`scripts/truedialog_check.py`](scripts/truedialog_check.py) follows: there is
+no configured value that could quietly become the destination, and the daily
+AWS reseed sends no number at all. Every other fixture row keeps its
+unreachable 555-01XX value, so the dirty-data scenarios still work.
 
 Under the hood, `make local-start` is `doctor` (tool checks), `local-up`
 (start Floci), `setup` (`uv sync`), `local-bootstrap` (CDK bootstrap, once),
@@ -233,10 +279,11 @@ event-source mappings, retries, or a DLQ.
 
 | Command | What it does |
 |---|---|
-| `make db-verify` | run the seven-day hearing query; expect 11 rows after a seed |
+| `make db-verify` | run the seven-day hearing query; expect 12 rows after a seed |
 | `make db-psql` | open a `psql` shell against the database |
 | `make db-url` | print the connection URL for DBeaver or another GUI |
-| `make db-reset` | re-seed the database, re-anchoring the date-relative fixtures |
+| `make db-reset` | re-seed the database, re-anchoring the 7/3/1 fixture dates |
+| `make db-reset PHONE=+1...` | the same, with your own number on the case at each lead time |
 
 The local database is Postgres standing in for the production Benchmark/Odyssey
 SQL Server schema; it is not engine-compatible with SQL Server, and all SQL
@@ -248,7 +295,10 @@ natively); in AWS they use Lambda's default x86-64.
 ### Sending a test text locally
 
 Three routes, easiest first. All of them send real messages to real phones and
-spend TrueDialog credit, so use a number you own.
+spend TrueDialog credit, so use a number you own. Each one texts a number you
+name; to instead have your number reach the sender the way a real reminder
+will — out of the court database, through the reminder query — seed it with
+[`make db-reset PHONE=+1...`](#seeding-your-own-phone-number).
 
 #### Step 1: put your credentials in place (all routes need this)
 
@@ -616,5 +666,19 @@ AWS deploy with a new `reseed` value:
 uv run cdk deploy CourtReminderStack -c reseed=$(date +%s)
 ```
 
-The stack output `CourtDatabaseSeedHearings` reports the reminder-query row
-count right after seeding, which should be 11.
+The stack output `CourtDatabaseSeedHearings` reports the seven-day
+reminder-query row count right after seeding, which should be 12.
+
+### The dev database re-seeds itself daily
+
+Deploying is not frequent enough to keep date-relative fixtures useful, so the
+`CourtDatabaseDailyReseed` EventBridge rule invokes `CourtBotDatabaseLoader`
+every day at 07:00 UTC, before the daily reminder run reads the database. It
+sends the same empty event `make db-reset` sends, and the CloudWatch log for
+that run prints the row counts and how many hearings sit at each of the seven,
+three and one day thresholds.
+
+This reloads every table, so **anything entered in the AWS dev database by
+hand is gone the next morning**. The schedule exists only in AWS mode; on
+Floci a person runs `make db-reset`. Nothing in this stack is safe to point at
+a database anyone depends on.

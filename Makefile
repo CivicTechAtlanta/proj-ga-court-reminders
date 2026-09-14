@@ -26,15 +26,16 @@ db-psql:
 	docker run --rm -it --network court-reminders_default postgres:16-alpine \
 		psql "$$($(LOCAL_AWS_ENV) uv run --with boto3==1.40.3 python scripts/local_db_url.py --docker-network)"
 
-## Run the seven-day fixture query; expect 11 rows right after a seed
+## Run the seven-day fixture query; expect 12 rows right after a seed
 db-verify:
 	docker run --rm -i --network court-reminders_default postgres:16-alpine \
 		psql "$$($(LOCAL_AWS_ENV) uv run --with boto3==1.40.3 python scripts/local_db_url.py --docker-network)" \
 		-v ON_ERROR_STOP=1 < db/queries/next_week_hearings.sql
 
-## Re-seed the court database in Floci, re-anchoring the date-relative fixtures
+## Re-seed Floci's court database; add PHONE=+1... to put your own number in it
 db-reset:
-	$(LOCAL_AWS_ENV) uv run --with boto3==1.40.3 python scripts/local_invoke.py CourtBotDatabaseLoader
+	$(LOCAL_AWS_ENV) uv run --with boto3==1.40.3 python scripts/local_reseed.py \
+		$(if $(PHONE),--phone "$(PHONE)",)
 
 ## Print the URL that reaches the text sender in Floci (for Insomnia, curl)
 local-sender-url:

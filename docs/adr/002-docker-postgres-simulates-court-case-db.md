@@ -57,12 +57,13 @@ Fidelity choices, so the prod query runs near-verbatim (see the translation in
 
 Easier: `make local-start` gives zero-config prod-shaped data; the prod query needs
 only its date arithmetic translated; fixtures exercise every query filter, so
-the expected result (11 rows, 12 without DISTINCT) doubles as a regression
-check.
+the expected result (12 rows seven days out, 13 without DISTINCT) doubles as
+a regression check.
 
 More difficult: it is still Postgres, not SQL Server — other T-SQL built-ins
 would need translating, and SQL Server-specific behavior (locking hints,
 collations) is not reproduced. Fixture dates freeze at first start, so the
 7-days-out query goes stale roughly a week later; `make db-reset` re-seeds
-and re-anchors. And identifier quoting is a standing trap: all SQL
+and re-anchors locally, and in AWS a daily EventBridge rule does the same to
+the dev database. And identifier quoting is a standing trap: all SQL
 against this database must leave identifiers unquoted.
