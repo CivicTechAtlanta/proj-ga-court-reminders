@@ -17,7 +17,6 @@ step 4 starts everything with one command.
 | Tool | Install |
 |---|---|
 | [Git](https://git-scm.com/downloads) | package manager or installer |
-| GNU Make | macOS: included with Xcode Command Line Tools (`xcode-select --install`). Linux: your package manager |
 | [uv](https://docs.astral.sh/uv/getting-started/installation/) | Python package manager; installs Python itself if needed |
 | [Node.js](https://nodejs.org/en/download) 22 or 24 LTS | installer, or a version manager such as [mise](https://mise.jdx.dev/) |
 | [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) | installer; used for deploying to real AWS (the local stack does not need it) |
@@ -63,7 +62,7 @@ colima start
 sudo systemctl enable --now docker
 ```
 
-  The Makefile runs Docker without `sudo`. If your account cannot access
+  The scripts run Docker without `sudo`. If your account cannot access
   Docker, follow the
   [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/),
   then log out and back in:
@@ -87,170 +86,7 @@ inside WSL, clone the repository into the WSL filesystem (not under `/mnt/c`),
 and run all commands from the WSL terminal. The team may not be able to
 troubleshoot Windows-specific issues during meetups.
 
-### Step 3: Check the installation
-
-Each command must complete without an error:
-
-```bash
-docker version
-docker compose version
-docker run --rm hello-world
-cdk --version
-uv --version
-```
-
-The first start needs internet access to GitHub, package registries, and
-public container-image registries.
-
-### Step 4: Clone and start
-
-```bash
-git clone https://github.com/CivicTechAtlanta/proj-ga-court-reminders.git
-cd proj-ga-court-reminders
-make local-start
-```
-
-`make local-start` checks the tools (`make doctor`), installs the Python
-dependencies, starts Floci, bootstraps it for CDK, and deploys both CDK stacks
-with dummy credentials. The deploy creates a Postgres database inside Floci and
-seeds it with the court fixtures. The first run takes a minute or two, mostly
-building the Lambda bundles. It has worked when the output ends with:
-
-```
-CourtReminderStack.CourtDatabaseSeedHearings = 11
-Local Lambdas are ready. Run: make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
-```
-
-### Step 5: Try it
-
-Invoke the main Lambda, which queries the database for hearings due for a
-reminder and returns them as JSON (11 of them right after a start):
-
-```bash
-make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
-```
-
-Run the canonical seven-day hearing query against the database (expect
-`(11 rows)`):
-
-```bash
-make db-verify
-```
-
-Run the tests. The four Postgres integration tests run against the Floci
-database; the SQL Server ones skip unless you point them at a SQL Server:
-
-```bash
-uv run pytest
-```
-
-Connect a GUI such as [DBeaver Community](https://dbeaver.io/download/) (any
-PostgreSQL-compatible client works) using the URL that `make db-url` prints,
-normally:
-
-```
-postgresql://court:court@localhost:7001/courtdb
-```
-
-The tables live in the `dbo` schema, mirroring the SQL Server layout. Or open a
-`psql` shell in a throwaway container with `make db-psql`.
-
-## Starting from zero
-
-To throw away every piece of local state and rebuild as if you had just
-cloned:
-
-```bash
-make local-reset
-```
-
-This stops Floci, removes the containers and volumes it created (the Lambda
-bundles and the database), deletes Floci's own state, and then runs the whole
-`make local-start` sequence again: tool checks, Floci, bootstrap, deploy, seed.
-Use it whenever you change CDK infrastructure, when something looks stuck, or
-when you want a clean demo. It ends with the same two lines as step 4.
-
-To stop the project without deleting anything:
-
-```bash
-make local-down
-```
-
-This stops Floci and removes its helper containers but keeps the data volumes;
-`make local-start` picks up where you left off. Stopping Docker Desktop or
-Colima also works but affects every project using that engine.
-
-If only the fixture dates have gone stale (they are anchored to the day the
-database was seeded, and the seven-day query goes empty about a week later),
-re-seed without rebuilding:
-
-```bash
-make db-reset
-```
-
-Under the hood, `make local-start` is `doctor` (tool checks), `local-up`
-(start Floci), `setup` (`uv sync`), `local-bootstrap` (CDK bootstrap, once),
-and `local-deploy` (CDK deploy); `make local-reset` wipes state first and then
-runs the same five. Each is a Make target you can run on its own, and
-`make synth` renders the CloudFormation templates without deploying.
-
-## Day-to-day development
-
-### Lambda functions
-
-The CDK-managed entry points are under `lambda/`: `main.py`,
-`message_sender.py`, `message_response.py`, `message_status.py`, and
-`database_loader.py` (the seed). Database access goes through the
-`lambda/court_db/` package, which reads its settings from environment
-variables and works unchanged against Floci's Postgres locally and RDS SQL
-Server in AWS.
-
-After changing Lambda code, redeploy and invoke by CDK construct name:
-
-```bash
-make local-deploy
-make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
-```
-
-The response and any function error print in your terminal. `EVENT` is
-optional for Lambdas that accept an empty event:
-
-```bash
-make local-invoke FUNCTION=CourtBotMessageStatus
-```
-
-`make local-deploy` uses CDK hotswap because Floci cannot reliably apply
-CloudFormation updates in place. After changing CDK infrastructure (anything
-under `cdk_stack/`), use `make local-reset` instead.
-
-To add a Lambda: add the handler under `lambda/`, register it with a unique
-construct name in `cdk_stack/cdk_stack.py`, add a sample event under
-`scripts/events/` if it needs one, then `make local-reset` and invoke it.
-`local-invoke` calls the function directly; it does not exercise SQS,
-event-source mappings, retries, or a DLQ.
-
-### Database
-
-| Command | What it does |
-|---|---|
-| `make db-verify` | run the seven-day hearing query; expect 11 rows after a seed |
-| `make db-psql` | open a `psql` shell against the database |
-| `make db-url` | print the connection URL for DBeaver or another GUI |
-| `make db-reset` | re-seed the database, re-anchoring the date-relative fixtures |
-
-The local database is Postgres standing in for the production Benchmark/Odyssey
-SQL Server schema; it is not engine-compatible with SQL Server, and all SQL
-against it must leave identifiers unquoted. See
-[ADR 002](docs/adr/002-docker-postgres-simulates-court-case-db.md). Locally the
-Lambdas are built for your machine's CPU architecture (Floci runs them
-natively); in AWS they use Lambda's default x86-64.
-
-### Sending a test text locally
-
-Three routes, easiest first. All of them send real messages to real phones and
-spend TrueDialog credit, so use a number you own.
-
-#### Step 1: put your credentials in place (all routes need this)
+### Step 3: Put your credentials in place (all routes need this)
 
 ```bash
 cp .template.env .env
@@ -269,19 +105,159 @@ Leave `TRUEDIALOG_CHANNEL_ID` at `22`. That is the account's default number.
 `.env` is gitignored; see [Credentials and what never to
 commit](#credentials-and-what-never-to-commit).
 
+
+### Step 4: Clone and start
+
+```bash
+git clone https://github.com/CivicTechAtlanta/proj-ga-court-reminders.git
+cd proj-ga-court-reminders
+. script/setup
+```
+
+The first start needs internet access to GitHub, package registries, and
+public container-image registries.
+
+
+`. script/setup` checks the tools, installs the Python
+dependencies, starts Floci, bootstraps it for CDK, and deploys both CDK stacks
+with dummy credentials. The deploy creates a Postgres database inside Floci and
+seeds it with the court fixtures. It will also verify the data in the database and TruDialog credentials. The first run takes a minute or two, mostly
+building the Lambda bundles. It has worked when the output ends with something like:
+
+```
+CourtReminderStack.CourtDatabaseSeedHearings = 11
+...
+Local Lambdas are ready. Run: . script/run CourtBotMain script_helpers/events/hello-api.json
+```
+
+### Step 5: Try it
+
+Invoke the main Lambda, which queries the database for hearings due for a
+reminder and returns them as JSON (11 of them right after a start):
+
+```bash
+. script/run CourtBotMain scripts/events/hello-api.json
+```
+
+Run the tests. The four Postgres integration tests run against the Floci
+database; the SQL Server ones skip unless you point them at a SQL Server:
+
+```bash
+. script/test
+```
+
+Connect a GUI such as [DBeaver Community](https://dbeaver.io/download/) (any
+PostgreSQL-compatible client works) using the URL that `. script/setup` prints,
+normally:
+
+```
+postgresql://court:court@localhost:7001/courtdb
+```
+
+The tables live in the `dbo` schema, mirroring the SQL Server layout. Or open a
+`psql` shell in a throwaway container with `. script/db/psql`.
+
+## Starting from zero
+
+To throw away every piece of local state and rebuild as if you had just
+cloned:
+
+```bash
+. script/reset
+```
+
+This stops Floci, removes the containers and volumes it created (the Lambda
+bundles and the database), deletes Floci's own state, and then runs the whole
+`script/setup` sequence again: tool checks, Floci, bootstrap, deploy, seed.
+Use it whenever you change CDK infrastructure, when something looks stuck, or
+when you want a clean demo. It ends with the same two lines as step 4.
+
+To stop the project without deleting anything:
+
+```bash
+. script/destroy
+```
+
+This stops Floci and removes its helper containers but keeps the data volumes. Stopping Docker Desktop or
+Colima also works but affects every project using that engine.
+
+If only the fixture dates have gone stale (they are anchored to the day the
+database was seeded, and the seven-day query goes empty about a week later),
+re-seed without rebuilding:
+
+```bash
+. script/db/reset
+```
+
+## Day-to-day development
+
+### Lambda functions
+
+The CDK-managed entry points are under `lambda/`: `main.py`,
+`message_sender.py`, `message_response.py`, `message_status.py`, and
+`database_loader.py` (the seed). Database access goes through the
+`lambda/court_db/` package, which reads its settings from environment
+variables and works unchanged against Floci's Postgres locally and RDS SQL
+Server in AWS.
+
+After changing Lambda code, redeploy and invoke by CDK construct name:
+
+```bash
+. script/redeploy 
+. script/run CourtBotMain script_helpers/events/hello-api.json
+```
+
+The response and any function error print in your terminal. The second argument is a event json file. It is
+optional for Lambdas that accept an empty event:
+
+```bash
+. script/run CourtBotMessageStatus
+```
+
+`. script/redeploy` uses CDK hotswap because Floci cannot reliably apply
+CloudFormation updates in place. After changing CDK infrastructure (anything
+under `cdk_stack/`), use `. script/reset` instead.
+
+To add a Lambda: add the handler under `lambda/`, register it with a unique
+construct name in `cdk_stack/cdk_stack.py`, add a sample event under
+`scripts/events/` if it needs one, then `. script/reset` and invoke it.
+`. script/run` calls the function directly; it does not exercise SQS,
+event-source mappings, retries, or a DLQ.
+
+### Database
+
+| Command | What it does |
+|---|---|
+| `. script/db/psql` | open a `psql` shell against the database |
+| `. script/db/reset` | re-seed the database, re-anchoring the date-relative fixtures |
+| `. script/db/verify` | verify database exists and data exists with expected row counts |
+
+The local database is Postgres standing in for the production Benchmark/Odyssey
+SQL Server schema; it is not engine-compatible with SQL Server, and all SQL
+against it must leave identifiers unquoted. See
+[ADR 002](docs/adr/002-docker-postgres-simulates-court-case-db.md). Locally the
+Lambdas are built for your machine's CPU architecture (Floci runs them
+natively); in AWS they use Lambda's default x86-64.
+
+### Sending a test text locally
+
+Three routes, easiest first. All of them send real messages to real phones and
+spend TrueDialog credit, so use a number you own.
+
+
 #### Route 1: straight through the wrapper (no Docker, no deploy)
 
 Confirm the credentials work. This contacts TrueDialog but sends nothing:
 
 ```bash
-make truedialog-check
+. script/sms/verify
 ```
 
 Expect your account id, the channel, and `credentials accepted`. Then send one
 text to a number you name:
 
 ```bash
-make truedialog-check TO=+14045550142
+. script/sms/verify +14045550142
 ```
 
 It prints a TrueDialog action id. That identifies the send in the portal and
@@ -297,42 +273,27 @@ credentials or the infrastructure.
 This exercises what actually ships: the Lambda reads its credentials from
 Secrets Manager inside Floci, exactly as it will from AWS.
 
-```bash
-make local-start
-```
-
-The first run takes a minute or two, mostly building Lambda bundles. It has
-worked when the output ends with `CourtDatabaseSeedHearings = 11`.
-
-Check the wiring without sending. An empty event makes the sender report
-whether it resolved the secret and whether TrueDialog accepts it:
 
 ```bash
-make local-invoke FUNCTION=CourtBotMessageSender
+. script/run CourtBotMessageSender
 ```
 
 `"credentials_accepted": true` means the whole chain works. Then send:
 
-```bash
-echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
-```
 
 ```bash
-make local-invoke FUNCTION=CourtBotMessageSender EVENT=/tmp/sms.json
+  echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
+. script/run CourtBotMessageSender /tmp/sms.json
 ```
 
-After changing anything in `.env`, run `make local-reset` rather than
-`make local-deploy`. Hotswap deploys skip secret changes, so a plain deploy
+After changing anything in `.env`, run `. script/reset` rather than
+`. script/redeploy`. Hotswap deploys skip secret changes, so a plain deploy
 leaves the old values in place and you will chase a problem that is not there.
 
 #### Route 3: from Insomnia or curl
 
 Import [docs/insomnia/court-reminders.json](docs/insomnia/court-reminders.json),
-select the `Local (Floci)` environment, and ask for the address:
-
-```bash
-make local-sender-url
-```
+select the `Local (Floci)` environment. The url to use is in the output of `. script/setup`
 
 Set that as `sender_url`, and set `test_number` to your phone. Both ship blank
 so that an unconfigured request fails instead of texting someone unexpected.
@@ -342,7 +303,7 @@ Lambda function URLs**. There is no local equivalent of the `SenderUrl` stack
 output; what you get instead is Floci's invoke endpoint, which takes the same
 `{"to", "message"}` body but needs no `x-api-key` and returns the Lambda's
 whole response envelope, with the payload inside `body` as a JSON string. The
-function name also changes on every `make local-reset`, so run the command
+function name also changes on every `. script/reset`, so run the command
 again after one.
 
 Use only the **Sending** folder against Floci. The **Error cases** folder
@@ -354,7 +315,7 @@ wrong-key requests are not refused there, they send a text.
 | Symptom | Cause |
 |---|---|
 | `not configured: Missing TrueDialog settings` | `.env` is missing or the three values are blank |
-| `503` with the same message | the deployed secret is empty; run `make local-reset` |
+| `503` with the same message | the deployed secret is empty; run `. script/reset` |
 | `credentials_accepted: false` | TrueDialog rejects the key for that account id |
 | `Not a valid US phone number` | the recipient is not ten digits with a valid area code |
 | `502` with a TrueDialog status | TrueDialog refused the send; the channel or opt-in is usually why |
@@ -449,7 +410,7 @@ To exercise the queue path locally without a queue, invoke the sender with a
 sample SQS event:
 
 ```bash
-make local-invoke FUNCTION=CourtBotMessageSender EVENT=scripts/events/sqs-send.json
+. script/run CourtBotMessageSender script_helpers/events/sqs-send.json
 ```
 
 That file carries its own recipient, the reserved `+1 404 555 0142`, so edit
@@ -457,32 +418,23 @@ it before expecting a text. It does not consult `.env`.
 
 Locally, put `TRUEDIALOG_API_KEY`, `TRUEDIALOG_API_SECRET`, and
 `TRUEDIALOG_ACCOUNT_ID` in `.env` (see `.template.env`; `TRUEDIALOG_CHANNEL_ID`
-defaults to TrueDialog's channel 22). `make local-deploy` copies them into the
+defaults to TrueDialog's channel 22). `. script/setup` copies them into the
 secret inside Floci, creates the same function URL there (its address is the
 `SenderUrl` output), and the Lambda reads the secret exactly as it will in
 AWS. Hotswap deploys skip secret changes, so after editing those values run
-`make local-reset`. Direct invocations need no key:
+`. script/reset`. Direct invocations need no key:
 
 ```bash
-make local-invoke FUNCTION=CourtBotMessageSender
+. script/run CourtBotMessageSender
 echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
-make local-invoke FUNCTION=CourtBotMessageSender EVENT=/tmp/sms.json
+. script/run CourtBotMessageSender /tmp/sms.json
 ```
 
 Every route takes its destination from the request, never from `.env`:
 Insomnia from its own `test_number` variable, an invoke or a `curl` from the
-`to` field, and `make truedialog-check` from `TO`. The Lambda has no
+`to` field, and `. script/sms/verify` from a phone number argument provided. The Lambda has no
 configured recipient at all, which is why a message without one fails
 instead of texting somebody unexpected.
-
-In AWS the TrueDialog secret is created with empty values, and its ARN is the
-`TrueDialogSecretArn` stack output. Fill it in once after the first deploy;
-later deploys leave the value alone:
-
-```bash
-aws secretsmanager put-secret-value --region us-east-2 --secret-id <TrueDialogSecretArn> \
-  --secret-string '{"api_key":"...","api_secret":"...","account_id":"...","channel_id":"22"}'
-```
 
 Destroying `CourtReminderStack` deletes both secrets, so the TrueDialog values
 must be entered again after a redeploy from scratch.
@@ -498,14 +450,14 @@ external service or spend message credit, so the one command that can text a
 real person is separate and deliberate:
 
 ```bash
-make truedialog-check
+. script/sms/verify
 ```
 
 That checks the credentials in `.env` against the live account and sends
 nothing. To send one real text, name the recipient:
 
 ```bash
-make truedialog-check TO=+14045550142
+. script/sms/verify +14045550142
 ```
 
 The recipient is an argument rather than a setting, so no configured value
@@ -549,7 +501,7 @@ environment. A filled-in collection exported normally carries the key in
 plain text.
 
 Never paste a credential into a command you will run, because your shell keeps
-history. `make truedialog-check` reads `.env` rather than taking the key as an
+history. `. script/sms/verify` reads `.env` rather than taking the key as an
 argument for exactly this reason.
 
 Deployed secrets are readable by anyone with AWS access to the account, which
@@ -574,18 +526,16 @@ That catches the obvious cases. It is a habit, not a guarantee.
 ### Checks
 
 ```bash
-uv run pytest      # unit tests, plus integration tests when the stack is up
-make lint          # ruff check
-make format        # ruff format
-make help          # every Make target with a one-line description
+. script/test      # unit tests, plus integration tests when the stack is up
+. script/lint          # ruff check
+. script/format       # ruff format
 ```
 
 ## AWS deployment
 
 Merges to `main` deploy through the repository's GitHub Actions pipeline.
 Manual deployment needs the AWS CLI and configured credentials. Do not set
-`AWS_ENDPOINT_URL` when targeting real AWS; the local Make targets set it only
-for Floci.
+`AWS_ENDPOINT_URL` when targeting real AWS.
 
 The same two stacks deploy: `CourtDatabaseStack` becomes RDS SQL Server
 Express (instance `courtbot-dev`) in an isolated-subnet VPC with generated
@@ -594,8 +544,7 @@ in that VPC, except the text sender, which runs outside it behind a public
 function URL (see [Text messages](#text-messages-truedialog)). The instance
 is not reachable from outside the VPC.
 
-Add project dependencies with `uv add <dependency>`, then run
-`make requirements` to refresh the exported deployment requirements.
+Add project dependencies with `uv add <dependency>`
 
 ### Seeding the deployed database
 
@@ -609,7 +558,7 @@ reloads every court table from the scripts under `lambda/court_db/seed/`, one
 directory per engine with row-for-row the same data.
 
 The seed re-runs automatically when those scripts change. To re-anchor the
-fixture dates without changing the scripts, run `make db-reset` locally, or in
+fixture dates without changing the scripts, run `. script/db/reset` locally, or in
 AWS deploy with a new `reseed` value:
 
 ```bash
