@@ -3,7 +3,7 @@
 Runs only when a SQL Server is reachable with these variables set, e.g. a
 local container: COURT_MSSQL_HOST (default localhost), COURT_MSSQL_PORT
 (default 1433), COURT_MSSQL_USER (default sa), COURT_MSSQL_PASSWORD
-(required). The Postgres comparison additionally needs `make local-start`.
+(required). The Postgres comparison additionally needs `. script/setup`.
 """
 
 import os
@@ -15,6 +15,12 @@ from court_db.seed import load_fixtures
 from court_db.sqlserver import SqlServerCourtCaseRepository
 
 pytestmark = pytest.mark.integration_court_db
+
+# Rows the reminder query returns from a freshly loaded fixture set. One
+# number for both engines: PhoneType is citext in the Postgres schema, so the
+# case-insensitive collation prod runs under is reproduced there and the
+# 'Cell' row (party 5) is matched on both sides. See ADR 002.
+SEVEN_DAY_ROWS = 12
 
 
 @pytest.fixture(scope="module")
@@ -51,10 +57,10 @@ def test_loader_reports_the_expected_row_counts(sqlserver_config):
     }
 
 
-def test_sqlserver_returns_the_documented_eleven_hearings(sqlserver_config):
+def test_sqlserver_returns_the_documented_hearings(sqlserver_config):
     config, _ = sqlserver_config
     hearings = SqlServerCourtCaseRepository(config).upcoming_hearings()
-    assert len(hearings) == 11
+    assert len(hearings) == SEVEN_DAY_ROWS
 
 
 def test_sqlserver_matches_local_postgres(sqlserver_config):
@@ -63,7 +69,7 @@ def test_sqlserver_matches_local_postgres(sqlserver_config):
     try:
         postgres.ping()
     except Exception:
-        pytest.skip("court database not running in Floci; run: make local-start")
+        pytest.skip("court database not running in Floci; run: . script/setup")
 
     def key(hearing):
         return (
@@ -75,9 +81,11 @@ def test_sqlserver_matches_local_postgres(sqlserver_config):
             hearing.phone_number,
         )
 
-    assert sorted(
-        map(key, SqlServerCourtCaseRepository(config).upcoming_hearings())
-    ) == sorted(map(key, postgres.upcoming_hearings()))
+    sqlserver_hearings = SqlServerCourtCaseRepository(config).upcoming_hearings()
+    postgres_hearings = postgres.upcoming_hearings()
+
+    assert sorted(map(key, sqlserver_hearings)) == sorted(map(key, postgres_hearings))
+    assert len(sqlserver_hearings) == len(postgres_hearings) == SEVEN_DAY_ROWS
 
 
 def test_sqlserver_ignores_trailing_spaces_in_case_number_lookups(sqlserver_config):

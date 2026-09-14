@@ -2,6 +2,8 @@
 set -euo pipefail
 . script/env
 
+# Runs the seven-day fixture query; expect 12 rows right after a seed.
+
 
 docker run --rm -i --network court-reminders_default postgres:16-alpine \
 		psql "$(uv run --with boto3==1.40.3 python script_helpers/local_db_url.py --docker-network)" \

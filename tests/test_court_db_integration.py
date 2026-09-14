@@ -1,6 +1,6 @@
 """Integration tests against the court database running in Floci.
 
-These run only when the local stack is deployed (make local-start), through
+These run only when the local stack is deployed (. script/setup), through
 the RDS proxy port docker-compose.yml publishes; otherwise each test skips
 with a pointer to the command. They prove the wrapper
 pulls the same rows as the canonical query in
@@ -26,7 +26,7 @@ def repository():
     try:
         repo.ping()
     except Exception:
-        pytest.skip("court database not running in Floci; run: make local-start")
+        pytest.skip("court database not running in Floci; run: . script/setup")
     return repo
 
 
@@ -51,14 +51,33 @@ def test_upcoming_hearings_matches_the_canonical_query(repository):
 def test_upcoming_hearings_respects_the_phone_type_filter(repository):
     # Phone NUMBERS stay dirty on purpose (ADR 002 seeds empty and garbage
     # values for downstream normalization); only the TYPE filter is strict.
+    # Casing is not part of that strictness: prod's collation is
+    # case-insensitive and PhoneType is citext here to match, so a row typed
+    # 'Cell' comes back as 'Cell' and belongs in the result.
     for hearing in repository.upcoming_hearings(days_ahead=7):
-        assert hearing.phone_type in {"CELL", "MOBILE"}
+        assert hearing.phone_type.upper() in {"CELL", "MOBILE"}
+
+
+def test_upcoming_hearings_matches_dirty_phone_type_casing(repository):
+    # The regression this pins: party 5 has a second phone row typed 'Cell'.
+    # Production texts that number; a case-sensitive local database would
+    # hide her from every local test. See ADR 002.
+    hearings = repository.upcoming_hearings(days_ahead=7)
+    if not hearings:
+        pytest.skip("fixture dates have aged out; run: . script/db/reset")
+
+    assert ("Cell", "404-555-0112") in {
+        (hearing.phone_type, hearing.phone_number) for hearing in hearings
+    }
+    # 'CELL PHONE' is a different label, not a casing variant, and stays out
+    # on both engines.
+    assert "CELL PHONE" not in {hearing.phone_type.upper() for hearing in hearings}
 
 
 def test_hearings_for_case_returns_all_dates_for_one_case(repository):
     upcoming = repository.upcoming_hearings(days_ahead=7)
     if not upcoming:
-        pytest.skip("fixture dates have aged out; run: make db-reset")
+        pytest.skip("fixture dates have aged out; run: . script/db/reset")
 
     case_number = upcoming[0].case_number
     hearings = repository.hearings_for_case(case_number)

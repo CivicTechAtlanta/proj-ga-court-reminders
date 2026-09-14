@@ -4,6 +4,12 @@
 -- Deltas from prod: WITH(NOLOCK) dropped, DATEADD(d,N,CONVERT(DATE,GETDATE()))
 -- rewritten as CURRENT_DATE + N, and an ORDER BY added for stable output.
 -- Identifiers and dbo.fnGetLookupDescription run as in prod.
+--
+-- The PhoneType filter below is prod's verbatim, and it is NOT case-sensitive:
+-- SQL Server compares under a case-insensitive collation, so 'Cell' matches
+-- as well as 'CELL'. The fixture schema makes PhoneType citext so this runs
+-- the same here (ADR 002). Do not "fix" it to UPPER(pp.PhoneType) — that
+-- would change who production texts, not just what the simulation returns.
 SELECT DISTINCT
     c.CaseID,
     cp.CasePartyID,

@@ -120,7 +120,7 @@ seeds it with the court fixtures. It will also verify the data in the database a
 building the Lambda bundles. It has worked when the output ends with something like:
 
 ```
-CourtReminderStack.CourtDatabaseSeedHearings = 11
+CourtReminderStack.CourtDatabaseSeedHearings = 12
 ...
 Local Lambdas are ready. Run: . script/run CourtBotMain script_helpers/events/hello-api.json
 ```
@@ -128,7 +128,7 @@ Local Lambdas are ready. Run: . script/run CourtBotMain script_helpers/events/he
 ### Step 5: Try it
 
 Invoke the main Lambda, which queries the database for hearings due for a
-reminder and returns them as JSON (11 of them right after a start):
+reminder and returns them as JSON (12 of them right after a start):
 
 ```bash
 . script/run CourtBotMain scripts/events/hello-api.json
@@ -561,4 +561,4 @@ uv run cdk deploy CourtReminderStack -c reseed=$(date +%s)
 ```
 
 The stack output `CourtDatabaseSeedHearings` reports the reminder-query row
-count right after seeding, which should be 11.
+count right after seeding, which should be 12.
