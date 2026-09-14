@@ -5,8 +5,8 @@ custom-resource helpers), the RDS engine (`floci-rds-*`), and its image
 registry, and it does not remove them, or the volumes behind them, when a
 stack is deleted. Without this step they outlive `docker compose down`.
 
-    python scripts/local_cleanup.py            # containers only (local-down)
-    python scripts/local_cleanup.py --volumes  # also the data (local-reset)
+    python scripts/local_cleanup.py            # containers only
+    python scripts/local_cleanup.py --volumes  # also the data
 """
 
 import argparse

@@ -1,0 +1,8 @@
+#!/bin/sh
+set -a
+source .env
+set +a
+
+set -e
+
+. script/run CourtBotDatabaseLoader

@@ -16,9 +16,7 @@ LOCAL_ENDPOINT_URL = "http://localhost:4566"
 
 def main():
     if os.getenv("AWS_ENDPOINT_URL") != LOCAL_ENDPOINT_URL:
-        raise SystemExit(
-            "This helper only runs against local Floci. Use `make local-bootstrap`."
-        )
+        raise SystemExit("This helper only runs against local Floci.")
 
     client = boto3.client(
         "ssm",
@@ -35,7 +33,9 @@ def main():
             raise
         # Same context as the deploy, so bootstrap does not synthesize the
         # database stack (and cache dummy-account lookups) for Floci
-        subprocess.run(["cdk", "bootstrap", "--context", "court_db=local"], check=True)
+        subprocess.run(
+            ["uv", "run", "cdk", "bootstrap", "--context", "court_db=local"], check=True
+        )
         return
 
     print("Floci CDK bootstrap already exists; skipping")

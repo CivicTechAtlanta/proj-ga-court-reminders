@@ -1,0 +1,11 @@
+#!/bin/sh
+set -a
+source .env
+set +a
+
+set -e
+
+FUNCTION=$1
+EVENT=$2
+
+uv run --with boto3==1.40.3 python script_helpers/local_invoke.py $FUNCTION $EVENT 

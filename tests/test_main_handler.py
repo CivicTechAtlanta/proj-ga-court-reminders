@@ -112,7 +112,8 @@ def test_the_documented_sample_event_runs(monkeypatch):
 
     event = json.loads(
         (
-            Path(__file__).resolve().parent.parent / "scripts/events/reminder-run.json"
+            Path(__file__).resolve().parent.parent
+            / "script_helpers/events/reminder-run.json"
         ).read_text()
     )
     built = record_senders(monkeypatch)
