@@ -7,7 +7,16 @@ service. `CourtDatabaseStack` deploys it to Floci as an RDS Postgres instance,
 seeded during `cdk deploy` by the same scripts (now under
 `lambda/court_db/seed/postgres/`), and docker-compose.yml publishes Floci's
 RDS proxy port (7001) so `make db-psql`, GUIs, and the integration tests reach
-it from the host. The fidelity choices below are unchanged.
+it from the host.
+
+Amended 2026-09-14: this ADR previously claimed the reminder query's
+`IN ('CELL','MOBILE')` is case-sensitive and so misses rows typed `'Cell'`.
+That was only ever true of the Postgres simulation. SQL Server's default
+collation (`SQL_Latin1_General_CP1_CI_AS`, confirmed on the 2022 server the
+fixtures load into) compares case-insensitively, so in production those rows
+*are* matched and those people *are* texted. `PhoneType` is now `citext` in
+the Postgres schema, which fixes the simulation rather than the query — see
+the collation bullet below. The other fidelity choices are unchanged.
 
 ## Context
 
@@ -38,6 +47,20 @@ Fidelity choices, so the prod query runs near-verbatim (see the translation in
   container runs `TZ=America/New_York` so `CURRENT_DATE` behaves like prod's
   court-local `GETDATE()`. The remaining T-SQL delta is date arithmetic only
   (`DATEADD(d,7,CONVERT(DATE,GETDATE()))` → `CURRENT_DATE + 7`).
+- **A case-insensitive `tblPartyPhone.PhoneType`.** SQL Server compares
+  strings under a case-insensitive collation, so prod's
+  `IN ('CELL','MOBILE')` matches `'Cell'` too. Postgres `text` does not, and
+  the gap is not cosmetic: it decides who gets a text message. Anyone whose
+  `PhoneType` was keyed as `'Cell'` is reminded in production and would be
+  invisible in local testing. The column is therefore `citext` (the extension
+  is created in `public`, so a re-seed's `DROP SCHEMA dbo` leaves it alone),
+  which reproduces the prod collation for `=`, `IN`, `DISTINCT` and `LIKE`
+  while still storing and returning the original casing. Fixing the schema
+  rather than the query keeps `db/queries/next_week_hearings.sql` a verbatim
+  copy of what prod runs — rewriting it as `UPPER(pp.PhoneType) IN (...)`
+  would change who prod texts, which is a decision for the court, not a
+  simulation-fidelity fix. Note this is a per-column fix, not a
+  database-wide one; see Consequences.
 - **Date-relative fixtures.** Event times are computed from `CURRENT_DATE` at
   first start, so the 7-days-out window matches immediately, and scenarios
   cover every filter in the query: window boundaries (inclusive lower,
@@ -49,20 +72,34 @@ Fidelity choices, so the prod query runs near-verbatim (see the translation in
   garbage entries (placeholder text, truncated, empty); names include ALL
   CAPS, stray whitespace, suffixes and 'LAST, FIRST' jammed into one field,
   FNU/LNU placeholders, and mojibake; PhoneType is unconstrained and dirty
-  ('Cell', 'CELL PHONE') so the query's case-sensitive filter visibly misses
-  those rows; one courtroom code has no lookup row (CourtRoom returns NULL),
-  and case numbers include a trailing space and an off-format value.
+  ('Cell', 'CELL PHONE') — 'Cell' is matched on both engines now that the
+  collation lines up, while 'CELL PHONE' is a different label, not a casing
+  variant, and is missed on both; one courtroom code has no lookup row
+  (CourtRoom returns NULL), and case numbers include a trailing space and an
+  off-format value.
 
 ## Consequences
 
 Easier: `make local-start` gives zero-config prod-shaped data; the prod query needs
 only its date arithmetic translated; fixtures exercise every query filter, so
-the expected result (11 rows, 12 without DISTINCT) doubles as a regression
-check.
+the expected result (12 rows, 13 without DISTINCT) doubles as a regression
+check — and it is now one number for both engines, which
+`tests/test_court_db_seed_integration.py` asserts by loading the same fixtures
+into a real SQL Server and comparing the two result sets row for row.
 
 More difficult: it is still Postgres, not SQL Server — other T-SQL built-ins
-would need translating, and SQL Server-specific behavior (locking hints,
-collations) is not reproduced. Fixture dates freeze at first start, so the
-7-days-out query goes stale roughly a week later; `make db-reset` re-seeds
-and re-anchors. And identifier quoting is a standing trap: all SQL
-against this database must leave identifiers unquoted.
+would need translating, and SQL Server-specific behavior (locking hints) is
+not reproduced. Collation fidelity is per-column, not database-wide: SQL
+Server compares *every* string case-insensitively, whereas only
+`tblPartyPhone.PhoneType` is case-insensitive here, because that is the one
+column the reminder query filters on and so the one that decides who gets
+texted. `tblCase.CaseNumber`, `tblEvent.CourtRoomCode` and `tblLookup`'s
+columns are still case-sensitive in Postgres and case-insensitive in prod; a
+fixture differing only in casing there would diverge the same way, and the
+remedy is the same (make the column `citext`). Postgres also compares
+trailing spaces that SQL Server ignores, which
+`test_hearings_for_case_requires_an_exact_match_on_postgres` pins as a known
+difference. Fixture dates freeze at first start, so the 7-days-out query goes
+stale roughly a week later; `make db-reset` re-seeds and re-anchors. And
+identifier quoting is a standing trap: all SQL against this database must
+leave identifiers unquoted.

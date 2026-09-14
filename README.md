@@ -117,21 +117,21 @@ seeds it with the court fixtures. The first run takes a minute or two, mostly
 building the Lambda bundles. It has worked when the output ends with:
 
 ```
-CourtReminderStack.CourtDatabaseSeedHearings = 11
+CourtReminderStack.CourtDatabaseSeedHearings = 12
 Local Lambdas are ready. Run: make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
 ```
 
 ### Step 5: Try it
 
 Invoke the main Lambda, which queries the database for hearings due for a
-reminder and returns them as JSON (11 of them right after a start):
+reminder and returns them as JSON (12 of them right after a start):
 
 ```bash
 make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/hello-api.json
 ```
 
 Run the canonical seven-day hearing query against the database (expect
-`(11 rows)`):
+`(12 rows)`):
 
 ```bash
 make db-verify
@@ -233,7 +233,7 @@ event-source mappings, retries, or a DLQ.
 
 | Command | What it does |
 |---|---|
-| `make db-verify` | run the seven-day hearing query; expect 11 rows after a seed |
+| `make db-verify` | run the seven-day hearing query; expect 12 rows after a seed |
 | `make db-psql` | open a `psql` shell against the database |
 | `make db-url` | print the connection URL for DBeaver or another GUI |
 | `make db-reset` | re-seed the database, re-anchoring the date-relative fixtures |
@@ -302,7 +302,7 @@ make local-start
 ```
 
 The first run takes a minute or two, mostly building Lambda bundles. It has
-worked when the output ends with `CourtDatabaseSeedHearings = 11`.
+worked when the output ends with `CourtDatabaseSeedHearings = 12`.
 
 Check the wiring without sending. An empty event makes the sender report
 whether it resolved the secret and whether TrueDialog accepts it:

@@ -51,7 +51,7 @@ def _seed() -> dict:
         f"as {config.user} (secret {'set' if os.getenv('COURT_DB_SECRET_ID') else 'unset'})"
     )
     summary = load_fixtures(config)
-    # The same check as `make db-verify` locally: 11 rows right after loading.
+    # The same check as `make db-verify` locally: 12 rows right after loading.
     summary["upcoming_hearings"] = len(
         court_case_repository(config).upcoming_hearings()
     )
