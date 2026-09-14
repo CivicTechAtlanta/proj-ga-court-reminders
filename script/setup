@@ -13,11 +13,11 @@ command -v node >/dev/null || { echo "missing: Node.js"; exit 1; }; \
 			22|24) echo "ok: Node $$(node --version)" ;; \
 			*) echo "warning: Node $$(node --version); CDK supports Node 22 or 24 LTS" ;; \
 		esac
+command -v aws >/dev/null && echo "ok: AWS CLI" || { echo "missing: AWS CLI"; exit 1; }
 command -v docker >/dev/null && echo "ok: docker CLI" || { echo "missing: docker CLI"; exit 1; }
 docker compose version >/dev/null && echo "ok: docker compose" || { echo "missing: docker compose v2"; exit 1; }
 docker compose up --help | grep -q -- '--wait' && echo "ok: docker compose supports --wait" || { echo "Docker Compose is too old; install a current Compose v2 release"; exit 1; }
 docker info >/dev/null 2>&1 && echo "ok: Docker daemon" || { echo "Docker daemon unavailable. Start Docker Desktop, Docker Engine, or Colima."; exit 1; }
-command -v cdk >/dev/null && echo "ok: AWS CDK CLI" || { echo "missing: AWS CDK CLI"; exit 1; }
 
 if command -v cdk >/dev/null 2>&1; then
   echo "AWS CDK is already installed: $(cdk --version)"
