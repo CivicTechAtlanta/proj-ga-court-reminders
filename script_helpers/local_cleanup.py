@@ -6,7 +6,7 @@ registry, and it does not remove them, or the volumes behind them, when a
 stack is deleted. Without this step they outlive `docker compose down`.
 
     python scripts/local_cleanup.py            # containers only
-    python scripts/local_cleanup.py --volumes  # also the data 
+    python scripts/local_cleanup.py --volumes  # also the data
 """
 
 import argparse

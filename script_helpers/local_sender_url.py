@@ -21,9 +21,7 @@ SENDER_LOGICAL_ID = "CourtBotMessageSender"
 
 def main():
     if os.getenv("AWS_ENDPOINT_URL") != LOCAL_ENDPOINT_URL:
-        raise SystemExit(
-            "This helper only reads local Floci."
-        )
+        raise SystemExit("This helper only reads local Floci.")
 
     # Through the stack rather than by listing: a rolled-back update can
     # leave orphaned functions behind in Floci.

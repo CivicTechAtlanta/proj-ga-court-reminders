@@ -7,7 +7,7 @@ real person is a command somebody types deliberately:
     uv run python scripts/truedialog_check.py                  # checks only
     uv run python scripts/truedialog_check.py --send +14045550142
 
-or through the script 
+or through the script
 
     . script/sms/verify
     . script/sms/verify +14045550142
