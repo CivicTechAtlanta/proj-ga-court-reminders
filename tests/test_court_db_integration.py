@@ -1,6 +1,6 @@
 """Integration tests against the court database running in Floci.
 
-These run only when the local stack is deployed (make local-start), through
+These run only when the local stack is deployed (. script/setup), through
 the RDS proxy port docker-compose.yml publishes; otherwise each test skips
 with a pointer to the command. They prove the wrapper
 pulls the same rows as the canonical query in
@@ -26,7 +26,7 @@ def repository():
     try:
         repo.ping()
     except Exception:
-        pytest.skip("court database not running in Floci; run: make local-start")
+        pytest.skip("court database not running in Floci; run: . script/setup")
     return repo
 
 
@@ -64,7 +64,7 @@ def test_upcoming_hearings_matches_dirty_phone_type_casing(repository):
     # hide her from every local test. See ADR 002.
     hearings = repository.upcoming_hearings(days_ahead=7)
     if not hearings:
-        pytest.skip("fixture dates have aged out; run: make db-reset")
+        pytest.skip("fixture dates have aged out; run: . script/db/reset")
 
     assert ("Cell", "404-555-0112") in {
         (hearing.phone_type, hearing.phone_number) for hearing in hearings
@@ -77,7 +77,7 @@ def test_upcoming_hearings_matches_dirty_phone_type_casing(repository):
 def test_hearings_for_case_returns_all_dates_for_one_case(repository):
     upcoming = repository.upcoming_hearings(days_ahead=7)
     if not upcoming:
-        pytest.skip("fixture dates have aged out; run: make db-reset")
+        pytest.skip("fixture dates have aged out; run: . script/db/reset")
 
     case_number = upcoming[0].case_number
     hearings = repository.hearings_for_case(case_number)

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+set -a
+source .env
+set +a
+
+SEND_MESSAGE_FLAG=
+if [[ -n ${1-} ]]; then SEND_MESSAGE_FLAG="--send $1"; fi;
+
+uv run python script_helpers/truedialog_check.py $SEND_MESSAGE_FLAG 

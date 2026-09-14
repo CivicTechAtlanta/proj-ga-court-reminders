@@ -1,7 +1,7 @@
 -- Synthetic case data exercising every filter in the reminder query
 -- (db/queries/next_week_hearings.sql). Event dates are anchored to
 -- CURRENT_DATE at first container start, so the 7-days-out window matches
--- on day one; `make db-reset` re-anchors them.
+-- on day one; `. script/db/reset` re-anchors them.
 --
 -- Expected on first run: exactly 12 rows (13 without DISTINCT).
 --
