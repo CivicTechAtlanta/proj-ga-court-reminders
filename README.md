@@ -182,53 +182,9 @@ If only the fixture dates have gone stale, re-seed without rebuilding:
 . script/db/reset
 ```
 
-The fixtures are anchored to the day they load, so a hearing seven days out
-becomes six days out tomorrow and within a week nothing sits at the seven,
-three and one day reminder thresholds. `. script/db/reset` reloads them and
-reports what each threshold would now find:
-
-```
-hearings the reminder query returns
-  seven days out    12
-  three days out     3
-  one day out        2
-```
-
-A zero on any line means that threshold has nothing to fire on, and the
-reseed exits non-zero. It reloads every table, so anything you added by hand
-is gone.
-
-#### Seeding your own phone number
-
-Every fixture number is in the reserved 555-01XX range, so a reminder run
-against a fresh seed cannot reach a real handset. To test the whole path to
-your own phone, pass it in:
-
-```bash
-. script/db/reset +14045551234
-```
-
-That rewrites the phone row behind the clean case at each lead time and
-nothing else, so one person — you — has a hearing seven, three and one day
-out:
-
-```
-reminder ladder now points at ***1234
-  seven days out   CR-2026-000112
-  three days out   CR-2026-000113
-  one day out      CR-2026-000114
-```
-
-Any US format works; it is normalized to E.164 before it is written, and
-rejected on the spot if it is not a valid US number. Only the last four
-digits are ever printed, because the same summary goes to CloudWatch in AWS
-and a number ties a person to a court case.
-
-The number is an argument rather than a setting, the same rule
-`. script/sms/verify` follows: there is no configured value that could
-quietly become the destination, and the daily AWS reseed sends no number at
-all. Every other fixture row keeps its unreachable 555-01XX value, so the
-dirty-data scenarios still work.
+That reloads every table and re-anchors the hearing dates to today. See
+[Testing the reminder cadences](#testing-the-reminder-cadences) for what it
+prints and how to point it at your own phone.
 
 ## Day-to-day development
 
@@ -287,7 +243,7 @@ Three routes, easiest first. All of them send real messages to real phones and
 spend TrueDialog credit, so use a number you own. Each one texts a number you
 name; to instead have your number reach the sender the way a real reminder
 will — out of the court database, through the reminder query — seed it with
-[`. script/db/reset +1...`](#seeding-your-own-phone-number).
+[`. script/db/reset +1...`](#putting-your-own-phone-in-the-fixtures).
 
 
 #### Route 1: straight through the wrapper (no Docker, no deploy)
@@ -575,6 +531,161 @@ That catches the obvious cases. It is a habit, not a guarantee.
 . script/lint          # ruff check
 . script/format       # ruff format
 ```
+
+## Testing the reminder cadences
+
+Reminders go out three times before a hearing: seven days, three days and one
+day. This section gets you a database with something at each of those marks,
+and puts your own phone in it, so that whatever reads the database finds you
+rather than an unreachable test number.
+
+You need the local stack running first — work through
+[Getting started](#getting-started) if you have not.
+
+One thing this does not do yet: nothing in the repo turns hearings into
+queued texts on its own. That producer is still to come, so today this gets
+your number into the fixtures and you drive the send yourself — see
+[Sending a test text locally](#sending-a-test-text-locally).
+
+### Why you have to reseed
+
+The fixtures are anchored to the day they load. A hearing that was seven days
+out yesterday is six days out today, so within a week nothing sits at seven,
+three or one day and the reminder query comes back empty. Nothing is broken;
+the data has just drifted past the thresholds.
+
+Reseeding re-anchors everything to today:
+
+```bash
+. script/db/reset
+```
+
+```
+reseeded postgres/courtdb
+
+rows loaded
+  tblLookup         4
+  tblEventType      5
+  tblParty         18
+  tblCase          14
+  tblCaseParty     18
+  tblPartyPhone    21
+  tblEvent          6
+  tblCaseEvent     28
+
+hearings the reminder query returns
+  seven days out    12
+  three days out     3
+  one day out        2
+```
+
+The last three lines are the ones to read. They are what a reminder run would
+find right now, one line per cadence. A zero means that cadence has nothing to
+fire on, and the reseed exits non-zero rather than letting you test against
+silence — an empty reminder run looks exactly like one with nothing due.
+
+This drops and reloads every table, so anything you added by hand is gone.
+
+### Putting your own phone in the fixtures
+
+Every number in the fixtures is in the reserved 555-01XX range, which cannot
+ring anybody. That is deliberate: seeding this database can never text a real
+person by accident. To test the path all the way to your own handset, pass
+your number in:
+
+```bash
+. script/db/reset +14045551234
+```
+
+```
+seeding the reminder ladder with ***1234
+reseeded postgres/courtdb
+
+rows loaded
+  ...
+
+hearings the reminder query returns
+  seven days out    12
+  three days out     3
+  one day out        2
+
+reminder ladder now points at ***1234
+  seven days out  CR-2026-000112
+  three days out  CR-2026-000113
+  one day out     CR-2026-000114
+
+These rows can now reach a real handset. Every other fixture number stays in the unreachable 555-01XX range.
+```
+
+Your number is now on the first defendant of three cases, one falling at each
+cadence, so every cadence has one obvious row to test against.
+
+Any US format works — `+14045551234`, `(404) 555-1234`, `404.555.1234`. It is
+normalized to E.164 before it is written, and a number that is not a valid US
+one is refused on the spot, before the reseed touches anything. Passing
+`555-0134` gets you:
+
+```
+Not a valid US phone number: ***0134. Pass a US number, for example +14045551234.
+```
+
+To see your row for yourself, run the canonical seven-day query, where
+`CR-2026-000112` now carries your number:
+
+```bash
+. script/db/verify
+```
+
+Three things worth knowing:
+
+- **Only your last four digits are ever printed.** The same summary goes to
+  CloudWatch when this runs in AWS, and a phone number ties a person to a
+  court case.
+- **Only those three rows change.** Every other fixture number keeps its
+  unreachable 555-01XX value, so the deliberately dirty data
+  ([ADR 002](docs/adr/002-docker-postgres-simulates-court-case-db.md)) still
+  does its job.
+- **The number is an argument, never a setting.** There is nowhere to
+  configure it, so no stored value can quietly become the destination. The
+  daily AWS reseed passes no number at all. This is the same rule
+  [`. script/sms/verify`](script/sms/verify) follows.
+
+### What each cadence contains
+
+After a plain reseed, with no phone of your own:
+
+| Cadence | Rows the reminder query returns | With a dialable number | Distinct numbers after normalizing |
+|---|---|---|---|
+| seven days out | 12 | 8 | 7 |
+| three days out | 3 | 3 | 3 |
+| one day out | 2 | 2 | 2 |
+
+Seven days out is where the dirty data lives, and the three columns are three
+different bugs waiting to happen. Four rows carry numbers nobody can dial
+(`''`, `'UNKNOWN'`, a truncated `'5550134'`, and one with `ext. 12` trailing).
+Of the eight that are dialable, two are the same person's number stored in two
+formats — `'(404) 555-0108'` and `'404-555-0108'` — which `SELECT DISTINCT`
+cannot collapse. Anything that texts per row, rather than per normalized
+number, texts that person twice.
+
+Three and one day out are clean on purpose, so a threshold can be tested
+without fighting the dirty data first.
+
+### The AWS dev database does this for itself
+
+Nobody has to remember to reseed the shared dev environment: an EventBridge
+rule reloads it every morning at 07:00 UTC. See
+[The dev database re-seeds itself daily](#the-dev-database-re-seeds-itself-daily).
+
+### When it does not work
+
+| What you see | What it means |
+|---|---|
+| `Could not uniquely resolve CourtBotDatabaseLoader` | The stack is not deployed. Run `. script/setup`. |
+| `No hearings one day out` and a non-zero exit | The seed loaded, but a cadence came back empty. The fixtures anchor a case at every lead time, so check what `lambda/court_db/seed/` actually loaded. |
+| `Not a valid US phone number` | Ten digits, or eleven starting with 1. Area code and exchange may not start with 0 or 1, which also rules out non-US numbers. |
+| Counts other than 12 / 3 / 2 | Somebody has edited the fixtures, or the database was seeded from a different branch. Reseed from yours. |
+| A reminder never arrives on your phone | The reseed only puts you in the database; nothing sends on its own yet. Drive the send yourself — see [Sending a test text locally](#sending-a-test-text-locally). |
 
 ## AWS deployment
 
