@@ -1,8 +1,14 @@
 #!/bin/sh
 set -e
 
+if [ ! -f .env ]; then
+  echo "missing: .env -- create it first with:  cp .template.env .env" >&2
+  echo "(run every script from the repository root)" >&2
+  exit 1
+fi
+
 set -a
-source .env
+. ./.env
 set +a
 
 

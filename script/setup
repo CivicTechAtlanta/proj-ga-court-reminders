@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ ! -f .env ]; then
+  echo "missing: .env -- create it first with:  cp .template.env .env" >&2
+  echo "(run every script from the repository root)" >&2
+  exit 1
+fi
+
 set -a
-source .env
+. ./.env
 set +a
 
 command -v git >/dev/null && echo "ok: git" || { echo "missing: git"; exit 1; }
 command -v uv >/dev/null && echo "ok: uv" || { echo "missing: uv"; exit 1; }
-command -v node >/dev/null || { echo "missing: Node.js"; exit 1; }; \
-		node_major="$$(node -p 'process.versions.node.split(".")[0]')"; \
-		case "$$node_major" in \
-			22|24) echo "ok: Node $$(node --version)" ;; \
-			*) echo "warning: Node $$(node --version); CDK supports Node 22 or 24 LTS" ;; \
-		esac
+command -v node >/dev/null || { echo "missing: Node.js"; exit 1; }
+node_major="$(node -p 'process.versions.node.split(".")[0]')"
+case "$node_major" in
+  22|24) echo "ok: Node $(node --version)" ;;
+  *) echo "warning: Node $(node --version); CDK supports Node 22 or 24 LTS" ;;
+esac
 command -v aws >/dev/null && echo "ok: AWS CLI" || { echo "missing: AWS CLI"; exit 1; }
 command -v docker >/dev/null && echo "ok: docker CLI" || { echo "missing: docker CLI"; exit 1; }
 docker compose version >/dev/null && echo "ok: docker compose" || { echo "missing: docker compose v2"; exit 1; }
@@ -40,8 +46,16 @@ echo "updating $TRUE_DIALOG_SECRET_CREDENTIAL"
    --secret-string "{\"api_key\":\"${TRUEDIALOG_API_KEY}\",\"api_secret\":\"${TRUEDIALOG_API_SECRET}\",\"account_id\":\"${TRUEDIALOG_ACCOUNT_ID}\",\"channel_id\":\"${TRUEDIALOG_CHANNEL_ID}\"}"
 
 
-. script/db/verify
-. script/sms/verify
+./script/db/verify
+
+if ./script/sms/verify; then
+  :
+else
+  echo
+  echo "note: TrueDialog credentials are not set, so no text can be sent yet."
+  echo "      Everything else works without them -- the database, the Lambdas,"
+  echo "      and the reminder run. Fill them into .env when you need SMS."
+fi
 
 echo
 echo

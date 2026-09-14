@@ -1,0 +1,15 @@
+{
+  "Records": [
+    {
+      "messageId": "11111111-1111-1111-1111-111111111111",
+      "receiptHandle": "local-test",
+      "body": "{\"to\": \"+14045550142\", \"message\": \"Your hearing is Thursday at 9:00 AM in Courtroom 3B.\"}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "md5OfBody": "00000000000000000000000000000000",
+      "eventSource": "aws:sqs",
+      "eventSourceARN": "arn:aws:sqs:us-east-1:000000000000:CourtBotOutbox",
+      "awsRegion": "us-east-1"
+    }
+  ]
+}
