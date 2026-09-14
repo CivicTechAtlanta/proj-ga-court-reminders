@@ -7,10 +7,10 @@ real person is a command somebody types deliberately:
     uv run python scripts/truedialog_check.py                  # checks only
     uv run python scripts/truedialog_check.py --send +14045550142
 
-or through the Makefile:
+or through the script 
 
-    make truedialog-check
-    make truedialog-check TO=+14045550142
+    . script/sms/verify
+    . script/sms/verify +14045550142
 
 The recipient is an argument rather than a setting, so there is no
 configured number that could quietly become the destination.

@@ -17,7 +17,7 @@ LOCAL_ENDPOINT_URL = "http://localhost:4566"
 def main():
     if os.getenv("AWS_ENDPOINT_URL") != LOCAL_ENDPOINT_URL:
         raise SystemExit(
-            "This helper only runs against local Floci. Use `make local-bootstrap`."
+            "This helper only runs against local Floci."
         )
 
     client = boto3.client(

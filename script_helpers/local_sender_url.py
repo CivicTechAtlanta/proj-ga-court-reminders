@@ -6,7 +6,7 @@ Floci's Lambda invoke endpoint, which accepts unsigned requests and hands the
 posted JSON to the handler as its event. That is the address to put in
 Insomnia's Local (Floci) environment.
 
-The function name changes on every `make local-reset`, so ask for it rather
+The function name changes on every `. script/reset`, so ask for it rather
 than writing it down.
 """
 
@@ -22,7 +22,7 @@ SENDER_LOGICAL_ID = "CourtBotMessageSender"
 def main():
     if os.getenv("AWS_ENDPOINT_URL") != LOCAL_ENDPOINT_URL:
         raise SystemExit(
-            "This helper only reads local Floci. Use `make local-sender-url`."
+            "This helper only reads local Floci."
         )
 
     # Through the stack rather than by listing: a rolled-back update can
@@ -44,7 +44,7 @@ def _physical_id(resources, resource_type, logical_id_prefix):
     if len(matches) != 1:
         raise SystemExit(
             f"Expected one {resource_type} named {logical_id_prefix}*, "
-            f"found {len(matches)}. Is the stack deployed? Try `make local-start`."
+            f"found {len(matches)}. Is the stack deployed? Try `. script/setup`."
         )
     return matches[0]
 
