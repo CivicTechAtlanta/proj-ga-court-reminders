@@ -1,0 +1,5 @@
+
+if [[ ! -v ENV_LOADED ]]; then
+    export $(grep -v '^#' .env | xargs)
+    export ENV_LOADED=1
+fi

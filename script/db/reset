@@ -15,9 +15,7 @@
 # to the caller's shell, and the reseed exits non-zero on the soft result of
 # a lead time having no hearings -- which should report, not close somebody's
 # terminal. The exit status below is the reseed's own either way.
-set -a
-source .env
-set +a
+. script/env
 
 PHONE=$1
 
