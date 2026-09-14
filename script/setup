@@ -1,10 +1,9 @@
-#!/bin/sh
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 set -a
 source .env
 set +a
-
 
 command -v git >/dev/null && echo "ok: git" || { echo "missing: git"; exit 1; }
 command -v uv >/dev/null && echo "ok: uv" || { echo "missing: uv"; exit 1; }
@@ -32,16 +31,14 @@ echo "updating $TRUE_DIALOG_SECRET_CREDENTIAL"
  aws secretsmanager put-secret-value --region us-east-2 --secret-id $TRUE_DIALOG_SECRET_CREDENTIAL \
    --secret-string "{\"api_key\":\"${TRUEDIALOG_API_KEY}\",\"api_secret\":\"${TRUEDIALOG_API_SECRET}\",\"account_id\":\"${TRUEDIALOG_ACCOUNT_ID}\",\"channel_id\":\"${TRUEDIALOG_CHANNEL_ID}\"}"
 
-docker run --rm -i --network court-reminders_default postgres:16-alpine \
-		psql "$(uv run --with boto3==1.40.3 python script_helpers/local_db_url.py --docker-network)" \
-		-v ON_ERROR_STOP=1 < db/queries/next_week_hearings.sql
 
-uv run python script_helpers/truedialog_check.py
+. script/db/verify
+. script/sms/verify
 
 echo
 echo
 
-echo "Local Lambdas are ready. Run: ./script/run CourtBotMain scripts/events/hello-api.json"
+echo "Local Lambdas are ready. Run: ./script/run CourtBotMain script_helpers/events/hello-api.json"
 
 LOCAL_SENDER_URL=$(uv run --with boto3==1.40.3 python script_helpers/local_sender_url.py)
 echo "URL for the message sender (for Insomnia, curl): $LOCAL_SENDER_URL"
