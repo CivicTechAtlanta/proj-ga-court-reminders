@@ -1,8 +1,5 @@
 #!/bin/sh
-set -a
-source .env
-set +a
-
+. script/env
 set -e
 
 docker compose stop floci
