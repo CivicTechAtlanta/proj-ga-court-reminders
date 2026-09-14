@@ -460,41 +460,6 @@ make local-invoke FUNCTION=CourtBotMessageSender EVENT=scripts/events/sqs-send.j
 That file carries its own recipient, the reserved `+1 404 555 0142`, so edit
 it before expecting a text. It does not consult `.env`.
 
-#### The daily reminder run
-
-`CourtBotMain` is the producer: once a day it asks the court database who has
-a hearing seven, three and one day out, turns each into a text, and puts it on
-the outbox queue. `CourtBotDailyReminders`, an EventBridge rule, is the only
-thing that invokes it.
-
-```
-EventBridge -> CourtBotMain -> CourtBotOutbox -> CourtBotMessageSender
-```
-
-The message copy lives in `lambda/reminders/thresholds.py`, one class per
-threshold with one `message()` each. Everything around it -- the query window,
-phone normalization, the ids, batching and queueing -- is in
-`lambda/reminders/logic.py` and is the same for all three.
-
-**Nothing is texted yet.** The copy is placeholder text marked `[DRAFT]`, and
-the stack deploys with `REMINDERS_DRY_RUN` set, so a run generates the
-reminders, reports them, and queues nothing. Clearing that constant in
-`cdk_stack.py` is the switch that starts texting people.
-
-Run one threshold by hand, or force a dry run whatever the stack says:
-
-```bash
-make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/reminder-run.json
-```
-
-Running twice in a day is safe. Every message carries a stable `reminder_id`,
-so the second run queues ids the sender has already texted and the sender
-drops them. The id also collapses the same phone number stored in two
-formats, which the reminder query's `DISTINCT` cannot.
-
-The schedule is `cron(0 13 * * ? *)`. EventBridge cron is always UTC, so that
-is 8am in Georgia in winter and 9am in summer.
-
 Locally, put `TRUEDIALOG_API_KEY`, `TRUEDIALOG_API_SECRET`, and
 `TRUEDIALOG_ACCOUNT_ID` in `.env` (see `.template.env`; `TRUEDIALOG_CHANNEL_ID`
 defaults to TrueDialog's channel 22). `make local-deploy` copies them into the
@@ -550,6 +515,92 @@ make truedialog-check TO=+14045550142
 
 The recipient is an argument rather than a setting, so no configured value
 can quietly become the destination.
+
+### The daily reminder run
+
+`CourtBotMain` is the producer: once a day it asks the court database who has
+a hearing seven, three and one day out, turns each into a text, and puts it on
+the outbox queue. `CourtBotDailyReminders`, an EventBridge rule, is the only
+thing that invokes it.
+
+```
+EventBridge -> CourtBotMain -> CourtBotOutbox -> CourtBotMessageSender
+```
+
+The message copy lives in `lambda/reminders/thresholds.py`, one class per
+threshold with one `message()` each. Everything around it -- the query window,
+phone normalization, the ids, batching and queueing -- is in
+`lambda/reminders/logic.py` and is the same for all three.
+
+**Nothing is texted yet.** The copy is placeholder text marked `[DRAFT]`, and
+the stack deploys with `REMINDERS_DRY_RUN` set, so a run generates the
+reminders, reports them, and queues nothing. Clearing that constant in
+`cdk_stack.py` is the switch that starts texting people.
+
+Run one threshold by hand, or force a dry run whatever the stack says:
+
+```bash
+make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/reminder-run.json
+```
+
+Running twice in a day is safe. Every message carries a stable `reminder_id`,
+so the second run queues ids the sender has already texted and the sender
+drops them. The id also collapses the same phone number stored in two
+formats, which the reminder query's `DISTINCT` cannot.
+
+The schedule is `cron(0 13 * * ? *)`. EventBridge cron is always UTC, so that
+is 8am in Georgia in winter and 9am in summer.
+
+#### Testing it
+
+The scheduled run and an empty event are the same thing. `make local-invoke`
+sends `{}` when given no `EVENT`, and that is what EventBridge delivers: no
+threshold named, so all three run. Nothing else needs setting up, and there is
+no way to make the rule itself fire early.
+
+```bash
+make local-invoke FUNCTION=CourtBotMain
+```
+
+Read `would_send` in the response. It holds one entry per reminder with its
+recipient, text and id, and in a dry run it is the only place the copy
+appears -- the logs deliberately carry neither a number nor a message.
+
+Working on one threshold, the loop is edit, deploy, invoke:
+
+```bash
+make local-deploy
+```
+
+```bash
+make local-invoke FUNCTION=CourtBotMain EVENT=scripts/events/reminder-run.json
+```
+
+That event asks for `ONE_DAY` alone and forces a dry run whatever the stack
+says. Copy it for another threshold. `dry_run` can only be turned on this way,
+never off; what gets queued is the stack's decision.
+
+Faster still, and no Docker needed: the unit tests render the same copy
+against fixtures, and `hearing()` in `tests/test_reminders.py` builds a
+`Hearing` to assert against.
+
+```bash
+uv run pytest tests/test_reminders.py tests/test_main_handler.py
+```
+
+To watch messages actually reach the queue, set `REMINDERS_DRY_RUN` to
+`"false"` in `cdk_stack.py` and deploy. Unlike a secret, an environment
+variable does survive a hotswap, so `make local-deploy` is enough. The sender
+then picks each message up and fails on the TrueDialog credentials unless
+`.env` is filled in. Put the constant back afterwards.
+
+| Symptom | Cause |
+|---|---|
+| `THREE_DAYS` and `ONE_DAY` report almost nothing | the fixtures were built for the seven-day query; a fresh seed holds 11 hearings seven days out against 2 and 1 |
+| every threshold reports `0` hearings | the fixture dates have drifted past their window; `make db-reset` |
+| `queued` stays `0` | `REMINDERS_DRY_RUN`, which is the default |
+| a copy edit does not show up | `make local-deploy` has not run |
+| a change under `cdk_stack/` does nothing | needs `make local-reset`; Floci cannot update CloudFormation in place |
 
 ### Credentials and what never to commit
 
