@@ -49,6 +49,8 @@ def main():
         )
 
     command = [
+        "uv",
+        "run",
         "cdk",
         "deploy",
         STACK_NAME,

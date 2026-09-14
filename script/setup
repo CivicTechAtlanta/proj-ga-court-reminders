@@ -1,0 +1,51 @@
+#!/bin/sh
+set -e
+
+set -a
+source .env
+set +a
+
+
+command -v git >/dev/null && echo "ok: git" || { echo "missing: git"; exit 1; }
+command -v uv >/dev/null && echo "ok: uv" || { echo "missing: uv"; exit 1; }
+command -v node >/dev/null || { echo "missing: Node.js"; exit 1; }; \
+		node_major="$$(node -p 'process.versions.node.split(".")[0]')"; \
+		case "$$node_major" in \
+			22|24) echo "ok: Node $$(node --version)" ;; \
+			*) echo "warning: Node $$(node --version); CDK supports Node 22 or 24 LTS" ;; \
+		esac
+command -v docker >/dev/null && echo "ok: docker CLI" || { echo "missing: docker CLI"; exit 1; }
+docker compose version >/dev/null && echo "ok: docker compose" || { echo "missing: docker compose v2"; exit 1; }
+docker compose up --help | grep -q -- '--wait' && echo "ok: docker compose supports --wait" || { echo "Docker Compose is too old; install a current Compose v2 release"; exit 1; }
+docker info >/dev/null 2>&1 && echo "ok: Docker daemon" || { echo "Docker daemon unavailable. Start Docker Desktop, Docker Engine, or Colima."; exit 1; }
+command -v cdk >/dev/null && echo "ok: AWS CDK CLI" || { echo "missing: AWS CDK CLI"; exit 1; }
+
+uv sync
+
+docker compose up --detach --wait floci
+
+uv run --with boto3==1.40.3 python script_helpers/local_cdk_bootstrap.py
+uv run --with boto3==1.40.3 python script_helpers/local_cdk_deploy.py
+
+TRUE_DIALOG_SECRET_CREDENTIAL=$(aws secretsmanager list-secrets | grep 'ARN' | grep 'TrueDialogCredentials' | cut -d "\"" -f 4)
+echo "updating $TRUE_DIALOG_SECRET_CREDENTIAL"
+ aws secretsmanager put-secret-value --region us-east-2 --secret-id $TRUE_DIALOG_SECRET_CREDENTIAL \
+   --secret-string "{\"api_key\":\"${TRUEDIALOG_API_KEY}\",\"api_secret\":\"${TRUEDIALOG_API_SECRET}\",\"account_id\":\"${TRUEDIALOG_ACCOUNT_ID}\",\"channel_id\":\"${TRUEDIALOG_CHANNEL_ID}\"}"
+
+docker run --rm -i --network court-reminders_default postgres:16-alpine \
+		psql "$(uv run --with boto3==1.40.3 python script_helpers/local_db_url.py --docker-network)" \
+		-v ON_ERROR_STOP=1 < db/queries/next_week_hearings.sql
+
+uv run python script_helpers/truedialog_check.py
+
+echo
+echo
+
+echo "Local Lambdas are ready. Run: ./script/run CourtBotMain scripts/events/hello-api.json"
+
+LOCAL_SENDER_URL=$(uv run --with boto3==1.40.3 python script_helpers/local_sender_url.py)
+echo "URL for the message sender (for Insomnia, curl): $LOCAL_SENDER_URL"
+
+LOCAL_DB_URL=$(uv run --with boto3==1.40.3 python script_helpers/local_db_url.py)
+echo "The local connection url to use for dbeaver, psql: $LOCAL_DB_URL"
+
