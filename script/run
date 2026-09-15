@@ -1,8 +1,5 @@
-#!/bin/sh
-set -a
-source .env
-set +a
-
+#!/usr/bin/env bash
+. script/env
 set -e
 
 FUNCTION=$1

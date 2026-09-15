@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-set -a
-source .env
-set +a
+. script/env
 
 command -v git >/dev/null && echo "ok: git" || { echo "missing: git"; exit 1; }
 command -v uv >/dev/null && echo "ok: uv" || { echo "missing: uv"; exit 1; }
