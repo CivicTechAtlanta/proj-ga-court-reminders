@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Re-seed the court database in Floci, re-anchoring the 7/3/1 fixture dates.
 #
 #   . script/db/reset                 the fixtures as they ship
