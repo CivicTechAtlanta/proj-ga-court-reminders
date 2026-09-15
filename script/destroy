@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 . script/env
 
-
-
 set -e
 
 
 docker compose stop floci
-uv run python script_helpers/local_cleanup.py
+uv run python script_helpers/local_cleanup.py --volume
 docker compose down
 

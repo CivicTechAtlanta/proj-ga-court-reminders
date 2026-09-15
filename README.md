@@ -170,7 +170,7 @@ when you want a clean demo. It ends with the same two lines as step 4.
 To stop the project without deleting anything:
 
 ```bash
-./script/destroy
+./script/down
 ```
 
 This stops Floci and removes its helper containers but keeps the data volumes. Stopping Docker Desktop or
