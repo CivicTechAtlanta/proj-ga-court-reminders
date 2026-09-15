@@ -128,7 +128,7 @@ def test_direct_invoke_returns_the_summary(seeded):
     # a reseed reports whether each threshold has anything to find.
     assert summary["hearings_by_lead_time"] == {"7": 12, "3": 3, "1": 2}
     # The seven-day window keeps a key of its own: the stack output and
-    # `. script/db/verify` both mean that one specifically.
+    # `./script/db/verify` both mean that one specifically.
     assert summary["upcoming_hearings"] == 12
     assert summary["row_counts"] == {"tblCase": 11}
     assert seeded["responses"] == []

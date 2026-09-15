@@ -1,7 +1,7 @@
 """Reload the local court database and report what a reminder run will find.
 
-    . script/db/reset
-    . script/db/reset +14045551234
+    ./script/db/reset
+    ./script/db/reset +14045551234
     uv run python script_helpers/local_reseed.py --phone +14045551234
 
 Runs the CourtBotDatabaseLoader Lambda in Floci, the same one that seeds the
@@ -13,7 +13,7 @@ until somebody reseeds.
 
 The AWS dev database gets the same treatment every morning from the
 CourtDatabaseDailyReseed rule in cdk_stack.py. This is the laptop
-equivalent, and `. script/db/reset` runs it.
+equivalent, and `./script/db/reset` runs it.
 
 Everything in the database is destroyed, including anything added by hand.
 
@@ -21,7 +21,7 @@ Everything in the database is destroyed, including anything added by hand.
 time gets that number instead of its reserved 555-01XX one, so one person
 has a hearing seven, three and one day out and can watch all three reminders
 arrive. Every other row keeps its unreachable number. It is an argument
-rather than a setting on purpose, the same rule `. script/sms/verify` follows,
+rather than a setting on purpose, the same rule `./script/sms/verify` follows,
 so no stored value can quietly become the destination.
 
 Exits non-zero when a lead time comes back with no hearings, because a

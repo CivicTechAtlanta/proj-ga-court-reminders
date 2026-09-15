@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Re-seed the court database in Floci, re-anchoring the 7/3/1 fixture dates.
 #
-#   . script/db/reset                 the fixtures as they ship
-#   . script/db/reset +14045551234    with your own number on the clean case
+#   ./script/db/reset                 the fixtures as they ship
+#   ./script/db/reset +14045551234    with your own number on the clean case
 #                                     at each reminder lead time, so a
 #                                     reminder run can text you
 #
@@ -11,11 +11,11 @@
 # destination. Every other fixture number stays in the unreachable 555-01XX
 # range.
 #
-# No `set -e` here on purpose. These scripts are sourced, so errexit belongs
-# to the caller's shell, and the reseed exits non-zero on the soft result of
-# a lead time having no hearings -- which should report, not close somebody's
-# terminal. The exit status below is the reseed's own either way.
+# Exits non-zero when a reminder cadence comes back with no hearings, so a
+# caller can tell "nothing is due" from "the fixtures have drifted".
 . script/env
+
+set -e
 
 PHONE=$1
 

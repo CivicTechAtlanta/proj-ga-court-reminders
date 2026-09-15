@@ -1,7 +1,7 @@
 -- Synthetic case data exercising every filter in the reminder query
 -- (db/queries/next_week_hearings.sql). Event dates are anchored to
 -- CURRENT_DATE at first container start, so the 7-days-out window matches
--- on day one; `. script/db/reset` re-anchors them.
+-- on day one; `./script/db/reset` re-anchors them.
 --
 -- Expected from the reminder query's seven-day window right after loading:
 -- exactly 12 rows (13 without DISTINCT). The 7/3/1 reminder ladder at the
@@ -22,7 +22,7 @@
 --           NULL FiledDate
 -- All dialable numbers use the reserved 555-01XX range, so seeding this file
 -- can never text a real person. The one exception is deliberate and per-run:
--- `. script/db/reset +1...` rewrites the three reminder-ladder numbers at
+-- `./script/db/reset +1...` rewrites the three reminder-ladder numbers at
 -- the bottom of this file to a developer's own handset, and nothing else.
 
 SET search_path TO dbo, public;
@@ -177,7 +177,7 @@ INSERT INTO tblCaseParty (CaseID, PartyID, ConnectionType) VALUES
     (13, 17, 'DEFENDANT'),
     (14, 18, 'DEFENDANT');
 
--- These three rows are what `. script/db/reset +1...` overwrites, which is
+-- These three rows are what `./script/db/reset +1...` overwrites, which is
 -- why each ladder case has exactly one (see court_db/seed.py use_test_phone).
 INSERT INTO tblPartyPhone (PartyID, PhoneType, PhoneNumber) VALUES
     (16, 'CELL', '+14045550116'),

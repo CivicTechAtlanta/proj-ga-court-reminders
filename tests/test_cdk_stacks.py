@@ -152,7 +152,7 @@ def test_the_dev_database_reseeds_itself_every_morning():
     (target,) = rule["Properties"]["Targets"]
     assert target["Arn"] == {"Fn::GetAtt": [loader(reminder), "Arn"]}
     # The empty event the loader reads as "seed and return the summary", the
-    # same one `. script/db/reset` sends; anything else looks like CloudFormation.
+    # same one `./script/db/reset` sends; anything else looks like CloudFormation.
     assert target["Input"] == "{}"
 
     reminder.has_resource_properties(
@@ -416,7 +416,7 @@ def test_local_truedialog_secret_is_filled_from_the_environment(monkeypatch):
 def test_floci_gets_no_daily_reseed():
     """Nothing schedules a laptop's database at 07:00 UTC, and Floci is not
     where an EventBridge schedule would be proved anyway. Locally the same
-    reseed is a person running `. script/db/reset`."""
+    reseed is a person running `./script/db/reset`."""
     _, reminder = synth(local=True)
     reminder.resource_count_is("AWS::Events::Rule", 0)
 

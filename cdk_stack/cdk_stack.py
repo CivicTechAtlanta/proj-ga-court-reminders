@@ -230,9 +230,9 @@ class CourtReminderStack(Stack):
         alone or the hand-entered values are overwritten on the next deploy.
 
         On Floci the same secret is filled from the TRUEDIALOG_* environment
-        at synth time (. script/redeploy loads .env), so the sender exercises
+        at synth time (./script/redeploy loads .env), so the sender exercises
         the Secrets Manager path it uses in AWS. Hotswap deploys ignore secret
-        changes; after editing .env, run . script/reset.
+        changes; after editing .env, run ./script/reset.
         """
         values = {"api_key": "", "api_secret": "", "account_id": "", "channel_id": "22"}
         if self._database.local:
@@ -343,11 +343,11 @@ class CourtReminderStack(Stack):
         database anyone depends on.
 
         The event is the empty one the loader reads as "seed and return the
-        summary", the same event `. script/db/reset` sends. Re-running a seed is
+        summary", the same event `./script/db/reset` sends. Re-running a seed is
         harmless, so EventBridge retrying a failed invocation costs nothing
         but a second load.
 
-        AWS only: on Floci the reseed is a person running `. script/db/reset`,
+        AWS only: on Floci the reseed is a person running `./script/db/reset`,
         and a laptop is not running at 07:00 UTC anyway.
         """
         if self._database.local:
