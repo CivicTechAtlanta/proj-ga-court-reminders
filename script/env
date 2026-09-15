@@ -1,5 +1,6 @@
+#!/usr/bin/env bash
 
-if [[ ! -v ENV_LOADED ]]; then
+if [ -z "${ENV_LOADED+x}" ]; then
     export $(grep -v '^#' .env | xargs)
     export ENV_LOADED=1
 fi
