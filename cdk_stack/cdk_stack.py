@@ -46,6 +46,10 @@ OUTBOX_DELIVERY_ATTEMPTS = 3
 # How long a sent reminder id is remembered. Long enough that no retry or
 # redelivery can outlive it, short enough that the table stays small.
 SENT_LOG_RETENTION = Duration.days(30)
+# When the AWS dev database reseeds itself, in UTC: the small hours in
+# Georgia, so the fixture dates are re-anchored before anyone opens the
+# environment and before any daily reminder run reads them.
+RESEED_HOUR_UTC = "7"
 # When the daily reminder run fires. EventBridge cron is always UTC, so
 # 13:00 is 8am in Georgia in winter and 9am in summer: the hour a reminder
 # arrives drifts by one across daylight saving. Holding it to the local
@@ -274,9 +278,9 @@ class CourtReminderStack(Stack):
         alone or the hand-entered values are overwritten on the next deploy.
 
         On Floci the same secret is filled from the TRUEDIALOG_* environment
-        at synth time (make local-deploy loads .env), so the sender exercises
+        at synth time (./script/redeploy loads .env), so the sender exercises
         the Secrets Manager path it uses in AWS. Hotswap deploys ignore secret
-        changes; after editing .env, run make local-reset.
+        changes; after editing .env, run ./script/reset.
         """
         values = {"api_key": "", "api_secret": "", "account_id": "", "channel_id": "22"}
         if self._database.local:
@@ -366,7 +370,54 @@ class CourtReminderStack(Stack):
             self,
             "CourtDatabaseSeedHearings",
             value=seed.get_att_string("UpcomingHearings"),
-            description="Reminder-query row count right after seeding; expect 11",
+            description="Seven-day reminder-query row count right after seeding; "
+            "expect 12",
+        )
+        self._daily_reseed(loader)
+
+    def _daily_reseed(self, loader: lp.PythonFunction) -> None:
+        """Re-anchor the dev database's fixture dates every morning.
+
+        The fixtures are relative to the day they load: a hearing seven days
+        out is six days out tomorrow, so within a week nothing sits at the
+        seven, three and one day reminder thresholds and the environment
+        stops being worth testing against. Deploying is the only other thing
+        that reseeds, and deploys are not daily.
+
+        This reloads through the same Lambda, which drops and recreates every
+        table, so anything entered in the dev database by hand is gone the
+        next morning. That is the bargain the seed already makes on every
+        deploy, now made once a day. Nothing here is safe to point at a
+        database anyone depends on.
+
+        The event is the empty one the loader reads as "seed and return the
+        summary", the same event `./script/db/reset` sends. Re-running a seed is
+        harmless, so EventBridge retrying a failed invocation costs nothing
+        but a second load.
+
+        AWS only: on Floci the reseed is a person running `./script/db/reset`,
+        and a laptop is not running at 07:00 UTC anyway.
+        """
+        if self._database.local:
+            return
+        rule = aws_events.Rule(
+            self,
+            "CourtDatabaseDailyReseed",
+            description="Reload the court database fixtures daily so their dates "
+            "stay anchored to today",
+            schedule=aws_events.Schedule.cron(minute="0", hour=RESEED_HOUR_UTC),
+            targets=[
+                aws_events_targets.LambdaFunction(
+                    loader, event=aws_events.RuleTargetInput.from_object({})
+                )
+            ],
+        )
+        CfnOutput(
+            self,
+            "CourtDatabaseDailyReseedRule",
+            value=rule.rule_name,
+            description="EventBridge rule reloading the court database fixtures "
+            f"every day at {RESEED_HOUR_UTC}:00 UTC",
         )
 
     def _function(

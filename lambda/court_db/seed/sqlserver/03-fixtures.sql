@@ -1,6 +1,7 @@
 -- Synthetic case data, row for row the same as seed/postgres/03-fixtures.sql, which
 -- documents every scenario and the deliberately dirty data quality.
--- Expected reminder-query result right after loading: exactly 11 rows.
+-- Expected reminder-query result right after loading: exactly 12 rows seven
+-- days out, 3 rows three days out, 2 rows one day out.
 --
 -- Event dates are anchored to the server's GETDATE() at load time, so the
 -- 7-days-out window matches immediately; rerun the loader to re-anchor.
@@ -112,4 +113,42 @@ INSERT INTO dbo.tblCaseEvent (CaseID, EventID, CaseEventTypeID, CaseStartDateTim
 INSERT INTO dbo.tblCaseEvent (CaseID, EventID, CaseEventTypeID, CaseStartDateTime)
 SELECT 9, 4, 2, DATEADD(day, n, @base) + CAST('08:30' AS datetime)
 FROM (VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10), (11), (12), (13), (14)) AS s(n);
+
+-- ---------------------------------------------------------------------------
+-- The 7/3/1 reminder ladder: one clean case per reminder lead time. See the
+-- Postgres fixtures for what each case is for.
+--   12 CR-2026-000112 Reyes    +7d 09:30  Arraignment          Courtroom 1A
+--   13 CR-2026-000113 Okafor   +3d 10:30  Status Hearing       Courtroom 2B
+--   14 CR-2026-000114 Nakamura +1d 11:30  Preliminary Hearing  Courtroom 3C
+-- ---------------------------------------------------------------------------
+SET IDENTITY_INSERT dbo.tblParty ON;
+INSERT INTO dbo.tblParty (PartyID, FirstName, LastName) VALUES
+    (16, 'Alice', 'Reyes'),
+    (17, 'Ben',   'Okafor'),
+    (18, 'Cora',  'Nakamura');
+SET IDENTITY_INSERT dbo.tblParty OFF;
+
+SET IDENTITY_INSERT dbo.tblCase ON;
+INSERT INTO dbo.tblCase (CaseID, CaseNumber, FirstDefendantID, FiledDate) VALUES
+    (12, 'CR-2026-000112', 16, DATEADD(day, -40, @today)),
+    (13, 'CR-2026-000113', 17, DATEADD(day, -35, @today)),
+    (14, 'CR-2026-000114', 18, DATEADD(day, -50, @today));
+SET IDENTITY_INSERT dbo.tblCase OFF;
+
+INSERT INTO dbo.tblCaseParty (CaseID, PartyID, ConnectionType) VALUES
+    (12, 16, 'DEFENDANT'),
+    (13, 17, 'DEFENDANT'),
+    (14, 18, 'DEFENDANT');
+
+-- One phone row per ladder case, which is what a developer's own number
+-- replaces (see court_db/seed.py use_test_phone).
+INSERT INTO dbo.tblPartyPhone (PartyID, PhoneType, PhoneNumber) VALUES
+    (16, 'CELL', '+14045550116'),
+    (17, 'CELL', '+14045550117'),
+    (18, 'CELL', '+14045550118');
+
+INSERT INTO dbo.tblCaseEvent (CaseID, EventID, CaseEventTypeID, CaseStartDateTime) VALUES
+    (12, 1, 1, DATEADD(day, 7, @base) + CAST('09:30' AS datetime)),
+    (13, 2, 2, DATEADD(day, 3, @base) + CAST('10:30' AS datetime)),
+    (14, 3, 3, DATEADD(day, 1, @base) + CAST('11:30' AS datetime));
 GO
