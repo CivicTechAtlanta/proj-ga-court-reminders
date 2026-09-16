@@ -106,43 +106,43 @@ commit](#credentials-and-what-never-to-commit).
 ```bash
 git clone https://github.com/CivicTechAtlanta/proj-ga-court-reminders.git
 cd proj-ga-court-reminders
-. script/setup
+./script/setup
 ```
 
 The first start needs internet access to GitHub, package registries, and
 public container-image registries.
 
 
-`. script/setup` checks the tools, installs the Python
+`./script/setup` checks the tools, installs the Python
 dependencies, starts Floci, bootstraps it for CDK, and deploys both CDK stacks
 with dummy credentials. The deploy creates a Postgres database inside Floci and
 seeds it with the court fixtures. It will also verify the data in the database and TruDialog credentials. The first run takes a minute or two, mostly
 building the Lambda bundles. It has worked when the output ends with something like:
 
 ```
-CourtReminderStack.CourtDatabaseSeedHearings = 12
+CourtReminderStack.CourtDatabaseSeedHearings = 13
 ...
-Local Lambdas are ready. Run: . script/run CourtBotMain script_helpers/events/hello-api.json
+Local Lambdas are ready. Run: /script/run CourtBotMain script_helpers/events/hello-api.json
 ```
 
 ### Step 5: Try it
 
 Invoke the main Lambda, which queries the database for hearings due for a
-reminder and returns them as JSON (12 of them right after a start):
+reminder and returns them as JSON (13 of them right after a start):
 
 ```bash
-. script/run CourtBotMain scripts/events/hello-api.json
+./script/run CourtBotMain scripts/events/hello-api.json
 ```
 
-Run the tests. The four Postgres integration tests run against the Floci
+Run the tests. The Postgres integration tests run against the Floci
 database; the SQL Server ones skip unless you point them at a SQL Server:
 
 ```bash
-. script/test
+./script/test
 ```
 
 Connect a GUI such as [DBeaver Community](https://dbeaver.io/download/) (any
-PostgreSQL-compatible client works) using the URL that `. script/setup` prints,
+PostgreSQL-compatible client works) using the URL that `./script/setup` prints,
 normally:
 
 ```
@@ -150,7 +150,7 @@ postgresql://court:court@localhost:7001/courtdb
 ```
 
 The tables live in the `dbo` schema, mirroring the SQL Server layout. Or open a
-`psql` shell in a throwaway container with `. script/db/psql`.
+`psql` shell in a throwaway container with `./script/db/psql`.
 
 ## Starting from zero
 
@@ -158,7 +158,7 @@ To throw away every piece of local state and rebuild as if you had just
 cloned:
 
 ```bash
-. script/reset
+./script/reset
 ```
 
 This stops Floci, removes the containers and volumes it created (the Lambda
@@ -170,19 +170,21 @@ when you want a clean demo. It ends with the same two lines as step 4.
 To stop the project without deleting anything:
 
 ```bash
-. script/destroy
+./script/down
 ```
 
 This stops Floci and removes its helper containers but keeps the data volumes. Stopping Docker Desktop or
 Colima also works but affects every project using that engine.
 
-If only the fixture dates have gone stale (they are anchored to the day the
-database was seeded, and the seven-day query goes empty about a week later),
-re-seed without rebuilding:
+If only the fixture dates have gone stale, re-seed without rebuilding:
 
 ```bash
-. script/db/reset
+./script/db/reset
 ```
+
+That reloads every table and re-anchors the hearing dates to today. See
+[Testing the reminder cadences](#testing-the-reminder-cadences) for what it
+prints and how to point it at your own phone.
 
 ## Day-to-day development
 
@@ -198,34 +200,35 @@ Server in AWS.
 After changing Lambda code, redeploy and invoke by CDK construct name:
 
 ```bash
-. script/redeploy 
-. script/run CourtBotMain script_helpers/events/hello-api.json
+./script/redeploy 
+./script/run CourtBotMain script_helpers/events/hello-api.json
 ```
 
 The response and any function error print in your terminal. The second argument is a event json file. It is
 optional for Lambdas that accept an empty event:
 
 ```bash
-. script/run CourtBotMessageStatus
+./script/run CourtBotMessageStatus
 ```
 
-`. script/redeploy` uses CDK hotswap because Floci cannot reliably apply
+`./script/redeploy` uses CDK hotswap because Floci cannot reliably apply
 CloudFormation updates in place. After changing CDK infrastructure (anything
-under `cdk_stack/`), use `. script/reset` instead.
+under `cdk_stack/`), use `./script/reset` instead.
 
 To add a Lambda: add the handler under `lambda/`, register it with a unique
 construct name in `cdk_stack/cdk_stack.py`, add a sample event under
-`scripts/events/` if it needs one, then `. script/reset` and invoke it.
-`. script/run` calls the function directly; it does not exercise SQS,
+`scripts/events/` if it needs one, then `./script/reset` and invoke it.
+`./script/run` calls the function directly; it does not exercise SQS,
 event-source mappings, retries, or a DLQ.
 
 ### Database
 
 | Command | What it does |
 |---|---|
-| `. script/db/psql` | open a `psql` shell against the database |
-| `. script/db/reset` | re-seed the database, re-anchoring the date-relative fixtures |
-| `. script/db/verify` | verify database exists and data exists with expected row counts |
+| `./script/db/psql` | open a `psql` shell against the database |
+| `./script/db/reset` | re-seed the database, re-anchoring the 7/3/1 fixture dates |
+| `./script/db/reset +1...` | the same, with your own number on the case at each lead time |
+| `./script/db/verify` | verify database exists and data exists with expected row counts |
 
 The local database is Postgres standing in for the production Benchmark/Odyssey
 SQL Server schema; it is not engine-compatible with SQL Server, and all SQL
@@ -237,7 +240,10 @@ natively); in AWS they use Lambda's default x86-64.
 ### Sending a test text locally
 
 Three routes, easiest first. All of them send real messages to real phones and
-spend TrueDialog credit, so use a number you own.
+spend TrueDialog credit, so use a number you own. Each one texts a number you
+name; to instead have your number reach the sender the way a real reminder
+will — out of the court database, through the reminder query — seed it with
+[`./script/db/reset +1...`](#putting-your-own-phone-in-the-fixtures).
 
 
 #### Route 1: straight through the wrapper (no Docker, no deploy)
@@ -245,14 +251,14 @@ spend TrueDialog credit, so use a number you own.
 Confirm the credentials work. This contacts TrueDialog but sends nothing:
 
 ```bash
-. script/sms/verify
+./script/sms/verify
 ```
 
 Expect your account id, the channel, and `credentials accepted`. Then send one
 text to a number you name:
 
 ```bash
-. script/sms/verify +14045550142
+./script/sms/verify +14045550142
 ```
 
 It prints a TrueDialog action id. That identifies the send in the portal and
@@ -270,7 +276,7 @@ Secrets Manager inside Floci, exactly as it will from AWS.
 
 
 ```bash
-. script/run CourtBotMessageSender
+./script/run CourtBotMessageSender
 ```
 
 `"credentials_accepted": true` means the whole chain works. Then send:
@@ -278,17 +284,17 @@ Secrets Manager inside Floci, exactly as it will from AWS.
 
 ```bash
   echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
-. script/run CourtBotMessageSender /tmp/sms.json
+./script/run CourtBotMessageSender /tmp/sms.json
 ```
 
-After changing anything in `.env`, run `. script/reset` rather than
-`. script/redeploy`. Hotswap deploys skip secret changes, so a plain deploy
+After changing anything in `.env`, run `./script/reset` rather than
+`/script/redeploy`. Hotswap deploys skip secret changes, so a plain deploy
 leaves the old values in place and you will chase a problem that is not there.
 
 #### Route 3: from Insomnia or curl
 
 Import [docs/insomnia/court-reminders.json](docs/insomnia/court-reminders.json),
-select the `Local (Floci)` environment. The url to use is in the output of `. script/setup`
+select the `Local (Floci)` environment. The url to use is in the output of `./script/setup`
 
 Set that as `sender_url`, and set `test_number` to your phone. Both ship blank
 so that an unconfigured request fails instead of texting someone unexpected.
@@ -298,7 +304,7 @@ Lambda function URLs**. There is no local equivalent of the `SenderUrl` stack
 output; what you get instead is Floci's invoke endpoint, which takes the same
 `{"to", "message"}` body but needs no `x-api-key` and returns the Lambda's
 whole response envelope, with the payload inside `body` as a JSON string. The
-function name also changes on every `. script/reset`, so run the command
+function name also changes on every `./script/reset`, so run the command
 again after one.
 
 Use only the **Sending** folder against Floci. The **Error cases** folder
@@ -310,7 +316,7 @@ wrong-key requests are not refused there, they send a text.
 | Symptom | Cause |
 |---|---|
 | `not configured: Missing TrueDialog settings` | `.env` is missing or the three values are blank |
-| `503` with the same message | the deployed secret is empty; run `. script/reset` |
+| `503` with the same message | the deployed secret is empty; run `./script/reset` |
 | `credentials_accepted: false` | TrueDialog rejects the key for that account id |
 | `Not a valid US phone number` | the recipient is not ten digits with a valid area code |
 | `502` with a TrueDialog status | TrueDialog refused the send; the channel or opt-in is usually why |
@@ -405,7 +411,7 @@ To exercise the queue path locally without a queue, invoke the sender with a
 sample SQS event:
 
 ```bash
-. script/run CourtBotMessageSender script_helpers/events/sqs-send.json
+./script/run CourtBotMessageSender script_helpers/events/sqs-send.json
 ```
 
 That file carries its own recipient, the reserved `+1 404 555 0142`, so edit
@@ -413,21 +419,21 @@ it before expecting a text. It does not consult `.env`.
 
 Locally, put `TRUEDIALOG_API_KEY`, `TRUEDIALOG_API_SECRET`, and
 `TRUEDIALOG_ACCOUNT_ID` in `.env` (see `.template.env`; `TRUEDIALOG_CHANNEL_ID`
-defaults to TrueDialog's channel 22). `. script/setup` copies them into the
+defaults to TrueDialog's channel 22). `./script/setup` copies them into the
 secret inside Floci, creates the same function URL there (its address is the
 `SenderUrl` output), and the Lambda reads the secret exactly as it will in
 AWS. Hotswap deploys skip secret changes, so after editing those values run
-`. script/reset`. Direct invocations need no key:
+`/script/reset`. Direct invocations need no key:
 
 ```bash
-. script/run CourtBotMessageSender
+/script/run CourtBotMessageSender
 echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
-. script/run CourtBotMessageSender /tmp/sms.json
+/script/run CourtBotMessageSender /tmp/sms.json
 ```
 
 Every route takes its destination from the request, never from `.env`:
 Insomnia from its own `test_number` variable, an invoke or a `curl` from the
-`to` field, and `. script/sms/verify` from a phone number argument provided. The Lambda has no
+`to` field, and `/script/sms/verify` from a phone number argument provided. The Lambda has no
 configured recipient at all, which is why a message without one fails
 instead of texting somebody unexpected.
 
@@ -445,14 +451,14 @@ external service or spend message credit, so the one command that can text a
 real person is separate and deliberate:
 
 ```bash
-. script/sms/verify
+./script/sms/verify
 ```
 
 That checks the credentials in `.env` against the live account and sends
 nothing. To send one real text, name the recipient:
 
 ```bash
-. script/sms/verify +14045550142
+./script/sms/verify +14045550142
 ```
 
 The recipient is an argument rather than a setting, so no configured value
@@ -496,7 +502,7 @@ environment. A filled-in collection exported normally carries the key in
 plain text.
 
 Never paste a credential into a command you will run, because your shell keeps
-history. `. script/sms/verify` reads `.env` rather than taking the key as an
+history. `./script/sms/verify` reads `.env` rather than taking the key as an
 argument for exactly this reason.
 
 Deployed secrets are readable by anyone with AWS access to the account, which
@@ -521,10 +527,165 @@ That catches the obvious cases. It is a habit, not a guarantee.
 ### Checks
 
 ```bash
-. script/test      # unit tests, plus integration tests when the stack is up
-. script/lint          # ruff check
-. script/format       # ruff format
+./script/test      # unit tests, plus integration tests when the stack is up
+./script/lint          # ruff check
+./script/format       # ruff format
 ```
+
+## Testing the reminder cadences
+
+Reminders go out three times before a hearing: seven days, three days and one
+day. This section gets you a database with something at each of those marks,
+and puts your own phone in it, so that whatever reads the database finds you
+rather than an unreachable test number.
+
+You need the local stack running first — work through
+[Getting started](#getting-started) if you have not.
+
+One thing this does not do yet: nothing in the repo turns hearings into
+queued texts on its own. That producer is still to come, so today this gets
+your number into the fixtures and you drive the send yourself — see
+[Sending a test text locally](#sending-a-test-text-locally).
+
+### Why you have to reseed
+
+The fixtures are anchored to the day they load. A hearing that was seven days
+out yesterday is six days out today, so within a week nothing sits at seven,
+three or one day and the reminder query comes back empty. Nothing is broken;
+the data has just drifted past the thresholds.
+
+Reseeding re-anchors everything to today:
+
+```bash
+./script/db/reset
+```
+
+```
+reseeded postgres/courtdb
+
+rows loaded
+  tblLookup         4
+  tblEventType      5
+  tblParty         18
+  tblCase          14
+  tblCaseParty     18
+  tblPartyPhone    21
+  tblEvent          6
+  tblCaseEvent     28
+
+hearings the reminder query returns
+  seven days out    13
+  three days out     3
+  one day out        2
+```
+
+The last three lines are the ones to read. They are what a reminder run would
+find right now, one line per cadence. A zero means that cadence has nothing to
+fire on, and the reseed exits non-zero rather than letting you test against
+silence — an empty reminder run looks exactly like one with nothing due.
+
+This drops and reloads every table, so anything you added by hand is gone.
+
+### Putting your own phone in the fixtures
+
+Every number in the fixtures is in the reserved 555-01XX range, which cannot
+ring anybody. That is deliberate: seeding this database can never text a real
+person by accident. To test the path all the way to your own handset, pass
+your number in:
+
+```bash
+./script/db/reset +14045551234
+```
+
+```
+seeding the reminder ladder with ***1234
+reseeded postgres/courtdb
+
+rows loaded
+  ...
+
+hearings the reminder query returns
+  seven days out    13
+  three days out     3
+  one day out        2
+
+reminder ladder now points at ***1234
+  seven days out  CR-2026-000112
+  three days out  CR-2026-000113
+  one day out     CR-2026-000114
+
+These rows can now reach a real handset. Every other fixture number stays in the unreachable 555-01XX range.
+```
+
+Your number is now on the first defendant of three cases, one falling at each
+cadence, so every cadence has one obvious row to test against.
+
+Any US format works — `+14045551234`, `(404) 555-1234`, `404.555.1234`. It is
+normalized to E.164 before it is written, and a number that is not a valid US
+one is refused on the spot, before the reseed touches anything. Passing
+`555-0134` gets you:
+
+```
+Not a valid US phone number: ***0134. Pass a US number, for example +14045551234.
+```
+
+To see your row for yourself, run the canonical seven-day query, where
+`CR-2026-000112` now carries your number:
+
+```bash
+./script/db/verify
+```
+
+Three things worth knowing:
+
+- **Only your last four digits are ever printed.** The same summary goes to
+  CloudWatch when this runs in AWS, and a phone number ties a person to a
+  court case.
+- **Only those three rows change.** Every other fixture number keeps its
+  unreachable 555-01XX value, so the deliberately dirty data
+  ([ADR 002](docs/adr/002-docker-postgres-simulates-court-case-db.md)) still
+  does its job.
+- **The number is an argument, never a setting.** There is nowhere to
+  configure it, so no stored value can quietly become the destination. The
+  daily AWS reseed passes no number at all. This is the same rule
+  [`./script/sms/verify`](script/sms/verify) follows.
+
+### What each cadence contains
+
+After a plain reseed, with no phone of your own:
+
+| Cadence | Rows the reminder query returns | With a dialable number | Distinct numbers after normalizing |
+|---|---|---|---|
+| seven days out | 13 | 9 | 8 |
+| three days out | 3 | 3 | 3 |
+| one day out | 2 | 2 | 2 |
+
+Seven days out is where the dirty data lives, and the three columns are three
+different bugs waiting to happen. Four rows carry numbers nobody can dial
+(`''`, `'UNKNOWN'`, a truncated `'5550134'`, and one with `ext. 12` trailing).
+Of the nine that are dialable, two are the same person's number stored in two
+formats — `'(404) 555-0108'` and `'404-555-0108'` — which `SELECT DISTINCT`
+cannot collapse. Anything that texts per row, rather than per normalized
+number, texts that person twice.
+
+Three and one day out are clean on purpose, so a threshold can be tested
+without fighting the dirty data first.
+
+### The AWS dev database does this for itself
+
+Nobody has to remember to reseed the shared dev environment: an EventBridge
+rule reloads it every morning at 07:00 UTC. See
+[The dev database re-seeds itself daily](#the-dev-database-re-seeds-itself-daily).
+
+### When it does not work
+
+| What you see | What it means |
+|---|---|
+| `Could not uniquely resolve CourtBotDatabaseLoader` | The stack is not deployed. Run `./script/setup`. |
+| `No hearings one day out` and a non-zero exit | The seed loaded, but a cadence came back empty. The fixtures anchor a case at every lead time, so check what `lambda/court_db/seed/` actually loaded. |
+| `Not a valid US phone number` | Ten digits, or eleven starting with 1. Area code and exchange may not start with 0 or 1, which also rules out non-US numbers. |
+| Counts other than 12 / 3 / 2 | Somebody has edited the fixtures, or the database was seeded from a different branch. Reseed from yours. |
+| A reminder never arrives on your phone | The reseed only puts you in the database; nothing sends on its own yet. Drive the send yourself — see [Sending a test text locally](#sending-a-test-text-locally). |
 
 ## AWS deployment
 
@@ -553,12 +714,26 @@ reloads every court table from the scripts under `lambda/court_db/seed/`, one
 directory per engine with row-for-row the same data.
 
 The seed re-runs automatically when those scripts change. To re-anchor the
-fixture dates without changing the scripts, run `. script/db/reset` locally, or in
+fixture dates without changing the scripts, run `./script/db/reset` locally, or in
 AWS deploy with a new `reseed` value:
 
 ```bash
 uv run cdk deploy CourtReminderStack -c reseed=$(date +%s)
 ```
 
-The stack output `CourtDatabaseSeedHearings` reports the reminder-query row
-count right after seeding, which should be 12.
+The stack output `CourtDatabaseSeedHearings` reports the seven-day
+reminder-query row count right after seeding, which should be 13.
+
+### The dev database re-seeds itself daily
+
+Deploying is not frequent enough to keep date-relative fixtures useful, so the
+`CourtDatabaseDailyReseed` EventBridge rule invokes `CourtBotDatabaseLoader`
+every day at 07:00 UTC, before the daily reminder run reads the database. It
+sends the same empty event `./script/db/reset` sends, and the CloudWatch log
+for that run prints the row counts and how many hearings sit at each of the
+seven, three and one day thresholds.
+
+This reloads every table, so **anything entered in the AWS dev database by
+hand is gone the next morning**. The schedule exists only in AWS mode; on
+Floci a person runs `./script/db/reset`. Nothing in this stack is safe to
+point at a database anyone depends on.

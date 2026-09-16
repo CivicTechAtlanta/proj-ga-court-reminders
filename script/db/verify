@@ -2,7 +2,7 @@
 set -euo pipefail
 . script/env
 
-# Runs the seven-day fixture query; expect 12 rows right after a seed.
+# Runs the seven-day fixture query; expect 13 rows right after a seed.
 
 
 docker run --rm -i --network court-reminders_default postgres:16-alpine \

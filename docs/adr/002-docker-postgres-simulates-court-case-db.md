@@ -6,17 +6,19 @@ Accepted, amended 2026-09-02: the Postgres no longer runs as its own compose
 service. `CourtDatabaseStack` deploys it to Floci as an RDS Postgres instance,
 seeded during `cdk deploy` by the same scripts (now under
 `lambda/court_db/seed/postgres/`), and docker-compose.yml publishes Floci's
-RDS proxy port (7001) so `. script/db/psql`, GUIs, and the integration tests reach
+RDS proxy port (7001) so `./script/db/psql`, GUIs, and the integration tests reach
 it from the host.
 
-Amended 2026-09-14: this ADR previously claimed the reminder query's
+Amended 2026-09-16: this ADR previously claimed the reminder query's
 `IN ('CELL','MOBILE')` is case-sensitive and so misses rows typed `'Cell'`.
 That was only ever true of the Postgres simulation. SQL Server's default
 collation (`SQL_Latin1_General_CP1_CI_AS`, confirmed on the 2022 server the
 fixtures load into) compares case-insensitively, so in production those rows
-*are* matched and those people *are* texted. `PhoneType` is now `citext` in
-the Postgres schema, which fixes the simulation rather than the query — see
-the collation bullet below. The other fidelity choices are unchanged.
+*are* matched and those people *are* texted. #43 documented that divergence
+and pinned it with an xfail; this amendment closes it instead: `PhoneType` is
+now `citext` in the Postgres schema, which fixes the simulation rather than
+the query — see the collation bullet below. The other fidelity choices are
+unchanged.
 
 ## Context
 
@@ -80,10 +82,10 @@ Fidelity choices, so the prod query runs near-verbatim (see the translation in
 
 ## Consequences
 
-Easier: `. script/setup` gives zero-config prod-shaped data; the prod query needs
+Easier: `./script/setup` gives zero-config prod-shaped data; the prod query needs
 only its date arithmetic translated; fixtures exercise every query filter, so
-the expected result (12 rows, 13 without DISTINCT) doubles as a regression
-check — and it is now one number for both engines, which
+the expected result (13 rows seven days out, 14 without DISTINCT) doubles as
+a regression check — and it is now one number for both engines, which
 `tests/test_court_db_seed_integration.py` asserts by loading the same fixtures
 into a real SQL Server and comparing the two result sets row for row.
 
@@ -100,6 +102,7 @@ remedy is the same (make the column `citext`). Postgres also compares
 trailing spaces that SQL Server ignores, which
 `test_hearings_for_case_requires_an_exact_match_on_postgres` pins as a known
 difference. Fixture dates freeze at first start, so the 7-days-out query goes
-stale roughly a week later; `. script/db/reset` re-seeds and re-anchors. And
-identifier quoting is a standing trap: all SQL against this database must
-leave identifiers unquoted.
+stale roughly a week later; `./script/db/reset` re-seeds and re-anchors
+locally, and in AWS a daily EventBridge rule does the same to the dev
+database. And identifier quoting is a standing trap: all SQL against this
+database must leave identifiers unquoted.

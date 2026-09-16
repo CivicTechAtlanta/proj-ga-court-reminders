@@ -1,5 +1,11 @@
+#!/usr/bin/env bash
 
-if [[ ! -v ENV_LOADED ]]; then
+if [ ! -f .env ]; then
+  echo "missing: .env -- create it first with:  cp .template.env .env" >&2
+  exit 1
+fi
+
+if [ -z "${ENV_LOADED+x}" ]; then
     export $(grep -v '^#' .env | xargs)
     export ENV_LOADED=1
 fi

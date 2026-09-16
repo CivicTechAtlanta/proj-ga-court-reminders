@@ -1,9 +1,11 @@
 -- Synthetic case data exercising every filter in the reminder query
 -- (db/queries/next_week_hearings.sql). Event dates are anchored to
 -- CURRENT_DATE at first container start, so the 7-days-out window matches
--- on day one; `. script/db/reset` re-anchors them.
+-- on day one; `./script/db/reset` re-anchors them.
 --
--- Expected on first run: exactly 12 rows (13 without DISTINCT).
+-- Expected from the reminder query's seven-day window right after loading:
+-- exactly 13 rows (14 without DISTINCT). The 7/3/1 reminder ladder at the
+-- bottom of this file also puts 3 rows three days out and 2 rows one day out.
 --
 -- Data quality deliberately mirrors the benchmark database — clean rows are
 -- the exception, not the rule:
@@ -20,8 +22,10 @@
 --   misc:   courtroom code with no lookup row (CourtRoom comes back NULL),
 --           empty judge name, trailing-space and off-format case numbers,
 --           NULL FiledDate
--- All dialable numbers use the reserved 555-01XX range so no real number
--- can ever be texted.
+-- All dialable numbers use the reserved 555-01XX range, so seeding this file
+-- can never text a real person. The one exception is deliberate and per-run:
+-- `./script/db/reset +1...` rewrites the three reminder-ladder numbers at
+-- the bottom of this file to a developer's own handset, and nothing else.
 
 SET search_path TO dbo, public;
 
@@ -148,6 +152,47 @@ INSERT INTO tblCaseEvent (CaseID, EventID, CaseEventTypeID, CaseStartDateTime) V
 INSERT INTO tblCaseEvent (CaseID, EventID, CaseEventTypeID, CaseStartDateTime)
 SELECT 9, 4, 2, d + interval '8 hours 30 minutes'
 FROM generate_series(CURRENT_DATE + 1, CURRENT_DATE + 14, interval '1 day') AS d;
+
+-- ---------------------------------------------------------------------------
+-- The 7/3/1 reminder ladder: one clean case per reminder lead time.
+--
+-- Everything above is deliberately dirty, which makes it a poor target when
+-- testing a single threshold end to end. These three cases are the opposite:
+-- an unambiguous name, one clean E.164 CELL number, a mapped courtroom, and
+-- exactly one hearing each, so a reminder run seven, three or one day out has
+-- one obvious row to assert on whatever the dirty data does around it.
+--
+-- Each adds one row to the reminder query, on its own day only:
+--   12 CR-2026-000112 Reyes    +7d 09:30  Arraignment          Courtroom 1A
+--   13 CR-2026-000113 Okafor   +3d 10:30  Status Hearing       Courtroom 2B
+--   14 CR-2026-000114 Nakamura +1d 11:30  Preliminary Hearing  Courtroom 3C
+-- ---------------------------------------------------------------------------
+INSERT INTO tblParty (PartyID, FirstName, LastName) VALUES
+    (16, 'Alice', 'Reyes'),
+    (17, 'Ben',   'Okafor'),
+    (18, 'Cora',  'Nakamura');
+
+INSERT INTO tblCase (CaseID, CaseNumber, FirstDefendantID, FiledDate) VALUES
+    (12, 'CR-2026-000112', 16, CURRENT_DATE - 40),
+    (13, 'CR-2026-000113', 17, CURRENT_DATE - 35),
+    (14, 'CR-2026-000114', 18, CURRENT_DATE - 50);
+
+INSERT INTO tblCaseParty (CaseID, PartyID, ConnectionType) VALUES
+    (12, 16, 'DEFENDANT'),
+    (13, 17, 'DEFENDANT'),
+    (14, 18, 'DEFENDANT');
+
+-- These three rows are what `./script/db/reset +1...` overwrites, which is
+-- why each ladder case has exactly one (see court_db/seed.py use_test_phone).
+INSERT INTO tblPartyPhone (PartyID, PhoneType, PhoneNumber) VALUES
+    (16, 'CELL', '+14045550116'),
+    (17, 'CELL', '+14045550117'),
+    (18, 'CELL', '+14045550118');
+
+INSERT INTO tblCaseEvent (CaseID, EventID, CaseEventTypeID, CaseStartDateTime) VALUES
+    (12, 1, 1, (CURRENT_DATE + 7) + time '09:30'),
+    (13, 2, 2, (CURRENT_DATE + 3) + time '10:30'),
+    (14, 3, 3, (CURRENT_DATE + 1) + time '11:30');
 
 -- Re-sync identity sequences after the explicit-ID inserts above
 SELECT setval(pg_get_serial_sequence('dbo.tblparty', 'partyid'),

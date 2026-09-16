@@ -28,6 +28,29 @@ def _function_name(client, requested):
     return matches[0]
 
 
+def invoke(function, payload=b"{}"):
+    """Run a locally deployed Lambda and return its response body as text.
+
+    Raises RuntimeError carrying the Lambda's own error payload when the
+    function itself fails, so a caller sees the traceback rather than a
+    successful-looking empty result.
+    """
+    client = boto3.client(
+        "lambda",
+        endpoint_url=os.getenv("AWS_ENDPOINT_URL", "http://localhost:4566"),
+        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
+    )
+    response = client.invoke(
+        FunctionName=_function_name(client, function),
+        InvocationType="RequestResponse",
+        Payload=payload,
+    )
+    result = response["Payload"].read().decode()
+    if response.get("FunctionError"):
+        raise RuntimeError(result)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("function", help="CDK construct name or deployed function name")
@@ -39,19 +62,7 @@ def main():
         payload = Path(args.event).read_bytes()
         json.loads(payload)
 
-    client = boto3.client(
-        "lambda",
-        endpoint_url=os.getenv("AWS_ENDPOINT_URL", "http://localhost:4566"),
-        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-    )
-    response = client.invoke(
-        FunctionName=_function_name(client, args.function),
-        InvocationType="RequestResponse",
-        Payload=payload,
-    )
-    result = response["Payload"].read().decode()
-    if response.get("FunctionError"):
-        raise RuntimeError(result)
+    result = invoke(args.function, payload)
     try:
         print(json.dumps(json.loads(result), indent=2))
     except json.JSONDecodeError:

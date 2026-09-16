@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+. script/env
+
+
+docker compose stop floci
+uv run python script_helpers/local_cleanup.py
+docker compose down
