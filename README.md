@@ -120,7 +120,7 @@ seeds it with the court fixtures. It will also verify the data in the database a
 building the Lambda bundles. It has worked when the output ends with something like:
 
 ```
-CourtReminderStack.CourtDatabaseSeedHearings = 11
+CourtReminderStack.CourtDatabaseSeedHearings = 12
 ...
 Local Lambdas are ready. Run: /script/run CourtBotMain script_helpers/events/hello-api.json
 ```
@@ -128,13 +128,13 @@ Local Lambdas are ready. Run: /script/run CourtBotMain script_helpers/events/hel
 ### Step 5: Try it
 
 Invoke the main Lambda, which queries the database for hearings due for a
-reminder and returns them as JSON (11 of them right after a start):
+reminder and returns them as JSON (12 of them right after a start):
 
 ```bash
 ./script/run CourtBotMain scripts/events/hello-api.json
 ```
 
-Run the tests. The four Postgres integration tests run against the Floci
+Run the tests. The Postgres integration tests run against the Floci
 database; the SQL Server ones skip unless you point them at a SQL Server:
 
 ```bash
@@ -176,13 +176,15 @@ To stop the project without deleting anything:
 This stops Floci and removes its helper containers but keeps the data volumes. Stopping Docker Desktop or
 Colima also works but affects every project using that engine.
 
-If only the fixture dates have gone stale (they are anchored to the day the
-database was seeded, and the seven-day query goes empty about a week later),
-re-seed without rebuilding:
+If only the fixture dates have gone stale, re-seed without rebuilding:
 
 ```bash
 ./script/db/reset
 ```
+
+That reloads every table and re-anchors the hearing dates to today. See
+[Testing the reminder cadences](#testing-the-reminder-cadences) for what it
+prints and how to point it at your own phone.
 
 ## Day-to-day development
 
@@ -224,7 +226,8 @@ event-source mappings, retries, or a DLQ.
 | Command | What it does |
 |---|---|
 | `./script/db/psql` | open a `psql` shell against the database |
-| `./script/db/reset` | re-seed the database, re-anchoring the date-relative fixtures |
+| `./script/db/reset` | re-seed the database, re-anchoring the 7/3/1 fixture dates |
+| `./script/db/reset +1...` | the same, with your own number on the case at each lead time |
 | `./script/db/verify` | verify database exists and data exists with expected row counts |
 
 The local database is Postgres standing in for the production Benchmark/Odyssey
@@ -237,7 +240,10 @@ natively); in AWS they use Lambda's default x86-64.
 ### Sending a test text locally
 
 Three routes, easiest first. All of them send real messages to real phones and
-spend TrueDialog credit, so use a number you own.
+spend TrueDialog credit, so use a number you own. Each one texts a number you
+name; to instead have your number reach the sender the way a real reminder
+will — out of the court database, through the reminder query — seed it with
+[`./script/db/reset +1...`](#putting-your-own-phone-in-the-fixtures).
 
 
 #### Route 1: straight through the wrapper (no Docker, no deploy)
@@ -526,6 +532,161 @@ That catches the obvious cases. It is a habit, not a guarantee.
 ./script/format       # ruff format
 ```
 
+## Testing the reminder cadences
+
+Reminders go out three times before a hearing: seven days, three days and one
+day. This section gets you a database with something at each of those marks,
+and puts your own phone in it, so that whatever reads the database finds you
+rather than an unreachable test number.
+
+You need the local stack running first — work through
+[Getting started](#getting-started) if you have not.
+
+One thing this does not do yet: nothing in the repo turns hearings into
+queued texts on its own. That producer is still to come, so today this gets
+your number into the fixtures and you drive the send yourself — see
+[Sending a test text locally](#sending-a-test-text-locally).
+
+### Why you have to reseed
+
+The fixtures are anchored to the day they load. A hearing that was seven days
+out yesterday is six days out today, so within a week nothing sits at seven,
+three or one day and the reminder query comes back empty. Nothing is broken;
+the data has just drifted past the thresholds.
+
+Reseeding re-anchors everything to today:
+
+```bash
+./script/db/reset
+```
+
+```
+reseeded postgres/courtdb
+
+rows loaded
+  tblLookup         4
+  tblEventType      5
+  tblParty         18
+  tblCase          14
+  tblCaseParty     18
+  tblPartyPhone    21
+  tblEvent          6
+  tblCaseEvent     28
+
+hearings the reminder query returns
+  seven days out    12
+  three days out     3
+  one day out        2
+```
+
+The last three lines are the ones to read. They are what a reminder run would
+find right now, one line per cadence. A zero means that cadence has nothing to
+fire on, and the reseed exits non-zero rather than letting you test against
+silence — an empty reminder run looks exactly like one with nothing due.
+
+This drops and reloads every table, so anything you added by hand is gone.
+
+### Putting your own phone in the fixtures
+
+Every number in the fixtures is in the reserved 555-01XX range, which cannot
+ring anybody. That is deliberate: seeding this database can never text a real
+person by accident. To test the path all the way to your own handset, pass
+your number in:
+
+```bash
+./script/db/reset +14045551234
+```
+
+```
+seeding the reminder ladder with ***1234
+reseeded postgres/courtdb
+
+rows loaded
+  ...
+
+hearings the reminder query returns
+  seven days out    12
+  three days out     3
+  one day out        2
+
+reminder ladder now points at ***1234
+  seven days out  CR-2026-000112
+  three days out  CR-2026-000113
+  one day out     CR-2026-000114
+
+These rows can now reach a real handset. Every other fixture number stays in the unreachable 555-01XX range.
+```
+
+Your number is now on the first defendant of three cases, one falling at each
+cadence, so every cadence has one obvious row to test against.
+
+Any US format works — `+14045551234`, `(404) 555-1234`, `404.555.1234`. It is
+normalized to E.164 before it is written, and a number that is not a valid US
+one is refused on the spot, before the reseed touches anything. Passing
+`555-0134` gets you:
+
+```
+Not a valid US phone number: ***0134. Pass a US number, for example +14045551234.
+```
+
+To see your row for yourself, run the canonical seven-day query, where
+`CR-2026-000112` now carries your number:
+
+```bash
+./script/db/verify
+```
+
+Three things worth knowing:
+
+- **Only your last four digits are ever printed.** The same summary goes to
+  CloudWatch when this runs in AWS, and a phone number ties a person to a
+  court case.
+- **Only those three rows change.** Every other fixture number keeps its
+  unreachable 555-01XX value, so the deliberately dirty data
+  ([ADR 002](docs/adr/002-docker-postgres-simulates-court-case-db.md)) still
+  does its job.
+- **The number is an argument, never a setting.** There is nowhere to
+  configure it, so no stored value can quietly become the destination. The
+  daily AWS reseed passes no number at all. This is the same rule
+  [`./script/sms/verify`](script/sms/verify) follows.
+
+### What each cadence contains
+
+After a plain reseed, with no phone of your own:
+
+| Cadence | Rows the reminder query returns | With a dialable number | Distinct numbers after normalizing |
+|---|---|---|---|
+| seven days out | 12 | 8 | 7 |
+| three days out | 3 | 3 | 3 |
+| one day out | 2 | 2 | 2 |
+
+Seven days out is where the dirty data lives, and the three columns are three
+different bugs waiting to happen. Four rows carry numbers nobody can dial
+(`''`, `'UNKNOWN'`, a truncated `'5550134'`, and one with `ext. 12` trailing).
+Of the eight that are dialable, two are the same person's number stored in two
+formats — `'(404) 555-0108'` and `'404-555-0108'` — which `SELECT DISTINCT`
+cannot collapse. Anything that texts per row, rather than per normalized
+number, texts that person twice.
+
+Three and one day out are clean on purpose, so a threshold can be tested
+without fighting the dirty data first.
+
+### The AWS dev database does this for itself
+
+Nobody has to remember to reseed the shared dev environment: an EventBridge
+rule reloads it every morning at 07:00 UTC. See
+[The dev database re-seeds itself daily](#the-dev-database-re-seeds-itself-daily).
+
+### When it does not work
+
+| What you see | What it means |
+|---|---|
+| `Could not uniquely resolve CourtBotDatabaseLoader` | The stack is not deployed. Run `./script/setup`. |
+| `No hearings one day out` and a non-zero exit | The seed loaded, but a cadence came back empty. The fixtures anchor a case at every lead time, so check what `lambda/court_db/seed/` actually loaded. |
+| `Not a valid US phone number` | Ten digits, or eleven starting with 1. Area code and exchange may not start with 0 or 1, which also rules out non-US numbers. |
+| Counts other than 12 / 3 / 2 | Somebody has edited the fixtures, or the database was seeded from a different branch. Reseed from yours. |
+| A reminder never arrives on your phone | The reseed only puts you in the database; nothing sends on its own yet. Drive the send yourself — see [Sending a test text locally](#sending-a-test-text-locally). |
+
 ## AWS deployment
 
 Merges to `main` deploy through the repository's GitHub Actions pipeline.
@@ -560,5 +721,19 @@ AWS deploy with a new `reseed` value:
 uv run cdk deploy CourtReminderStack -c reseed=$(date +%s)
 ```
 
-The stack output `CourtDatabaseSeedHearings` reports the reminder-query row
-count right after seeding, which should be 11.
+The stack output `CourtDatabaseSeedHearings` reports the seven-day
+reminder-query row count right after seeding, which should be 12.
+
+### The dev database re-seeds itself daily
+
+Deploying is not frequent enough to keep date-relative fixtures useful, so the
+`CourtDatabaseDailyReseed` EventBridge rule invokes `CourtBotDatabaseLoader`
+every day at 07:00 UTC, before the daily reminder run reads the database. It
+sends the same empty event `./script/db/reset` sends, and the CloudWatch log
+for that run prints the row counts and how many hearings sit at each of the
+seven, three and one day thresholds.
+
+This reloads every table, so **anything entered in the AWS dev database by
+hand is gone the next morning**. The schedule exists only in AWS mode; on
+Floci a person runs `./script/db/reset`. Nothing in this stack is safe to
+point at a database anyone depends on.

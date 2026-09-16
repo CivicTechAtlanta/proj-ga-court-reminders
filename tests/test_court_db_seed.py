@@ -5,18 +5,27 @@ from pathlib import Path
 import pytest
 
 from court_db import DatabaseConfig
-from court_db.seed import SEED_ROOT, TABLES, load_fixtures, split_batches
+from court_db.seed import (
+    LADDER_CASES,
+    SEED_ROOT,
+    TABLES,
+    load_fixtures,
+    split_batches,
+    use_test_phone,
+)
 
 SQL_DIR = SEED_ROOT / "sqlserver"
 POSTGRES_SQL_DIR = SEED_ROOT / "postgres"
 
 
 class FakeCursor:
-    def __init__(self, log):
+    def __init__(self, log, params=None):
         self.log = log
+        self.params = params if params is not None else []
 
     def execute(self, sql, params=None):
         self.log.append(sql)
+        self.params.append(params)
 
     def fetchall(self):
         return [(42,)]
@@ -32,6 +41,7 @@ class FakeConnection:
     def __init__(self, database, log):
         self.database = database
         self.log = log
+        self.params = []
         self.autocommit_set = None
         self.committed = False
         self.closed = False
@@ -40,7 +50,7 @@ class FakeConnection:
         self.autocommit_set = value
 
     def cursor(self):
-        return FakeCursor(self.log)
+        return FakeCursor(self.log, self.params)
 
     def commit(self):
         self.committed = True
@@ -131,6 +141,14 @@ def test_fixtures_match_the_postgres_seed_row_for_row():
         "'26CR000111'",
         "'DOE, JANE'",
         "'O''Brien'",
+        # The 7/3/1 reminder ladder, which must exist in both engines or a
+        # threshold that works locally finds nothing in AWS.
+        "'CR-2026-000112'",
+        "'CR-2026-000113'",
+        "'CR-2026-000114'",
+        "'+14045550116'",
+        "'+14045550117'",
+        "'+14045550118'",
     ]:
         assert literal in postgres and literal in sqlserver
     assert postgres.count("'DEFENDANT'") == sqlserver.count("'DEFENDANT'")
@@ -216,3 +234,64 @@ def test_postgres_scripts_cover_every_table():
     for table in TABLES:
         assert f"CREATE TABLE {table} (" in schema, table
     assert "CREATE FUNCTION fnGetLookupDescription" in schema
+
+
+def test_the_ladder_cases_are_the_ones_the_fixtures_seed():
+    """Both engines must carry every case use_test_phone rewrites, or a
+    developer's number lands in one environment and not the other."""
+    assert LADDER_CASES == {
+        7: "CR-2026-000112",
+        3: "CR-2026-000113",
+        1: "CR-2026-000114",
+    }
+    for sql_dir in (POSTGRES_SQL_DIR, Path(SQL_DIR)):
+        fixtures = (sql_dir / "03-fixtures.sql").read_text()
+        for case_number in LADDER_CASES.values():
+            assert f"'{case_number}'" in fixtures, (sql_dir.name, case_number)
+
+
+def test_use_test_phone_rewrites_one_row_per_lead_time_and_commits():
+    connections, connect = fake_connect()
+
+    rewritten = use_test_phone(aws_config(), "+14045551234", connect=connect)
+
+    (target,) = connections
+    assert target.committed is True
+    assert rewritten == {
+        "7": "CR-2026-000112",
+        "3": "CR-2026-000113",
+        "1": "CR-2026-000114",
+    }
+    # One statement per ladder case, and nothing else touched.
+    assert len(target.log) == len(LADDER_CASES)
+    for statement in target.log:
+        assert code_of(statement).startswith("UPDATE dbo.tblPartyPhone")
+    # Parameterized, never interpolated: the number reaches the driver as a
+    # value, so no phone string can become SQL.
+    assert target.params == [
+        {"phone": "+14045551234", "case_number": case_number}
+        for case_number in LADDER_CASES.values()
+    ]
+
+
+def test_use_test_phone_leaves_every_other_number_alone():
+    """The dirty phone rows are the point of these fixtures; a test number
+    must not overwrite them."""
+    connections, connect = fake_connect()
+
+    use_test_phone(aws_config(), "+14045551234", connect=connect)
+
+    (target,) = connections
+    for statement in target.log:
+        # Scoped through tblCase by case number, not a blanket UPDATE.
+        assert "WHERE PartyID IN (" in statement
+        assert "FROM dbo.tblCase WHERE CaseNumber = %(case_number)s" in statement
+
+
+def test_use_test_phone_rejects_an_engine_it_has_no_scripts_for():
+    _, connect = fake_connect()
+    config = DatabaseConfig(
+        engine="oracle", host="h", port=1, database="courtdb", user="u", password="p"
+    )
+    with pytest.raises(ValueError):
+        use_test_phone(config, "+14045551234", connect=connect)
