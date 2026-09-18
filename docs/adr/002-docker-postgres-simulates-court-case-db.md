@@ -54,9 +54,11 @@ Fidelity choices, so the prod query runs near-verbatim (see the translation in
   `IN ('CELL','MOBILE')` matches `'Cell'` too. Postgres `text` does not, and
   the gap is not cosmetic: it decides who gets a text message. Anyone whose
   `PhoneType` was keyed as `'Cell'` is reminded in production and would be
-  invisible in local testing. The column is therefore `citext` (the extension
-  is created in `public`, so a re-seed's `DROP SCHEMA dbo` leaves it alone),
-  which reproduces the prod collation for `=`, `IN`, `DISTINCT` and `LIKE`
+  invisible in local testing. The column is therefore converted to `citext`
+  by its own seed script, `lambda/court_db/seed/postgres/04-phone-type-citext.sql`,
+  which runs after the fixtures load, rather than by editing the base schema
+  (the extension is created in `public`, so a re-seed's `DROP SCHEMA dbo`
+  leaves it alone). `citext` reproduces the prod collation for `=`, `IN`, `DISTINCT` and `LIKE`
   while still storing and returning the original casing. Fixing the schema
   rather than the query keeps `db/queries/next_week_hearings.sql` a verbatim
   copy of what prod runs — rewriting it as `UPPER(pp.PhoneType) IN (...)`

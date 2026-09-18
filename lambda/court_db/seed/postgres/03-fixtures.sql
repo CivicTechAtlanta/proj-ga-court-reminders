@@ -17,7 +17,8 @@
 --           collapses byte-identical rows
 --   types:  PhoneType is dirty too ('Cell', 'CELL PHONE'). Prod compares
 --           case-insensitively, so IN ('CELL','MOBILE') does match 'Cell'
---           (PhoneType is citext here to reproduce that — see 01-schema.sql);
+--           (PhoneType is citext here to reproduce that — see
+--           04-phone-type-citext.sql);
 --           'CELL PHONE' is a different label and is missed on both engines
 --   misc:   courtroom code with no lookup row (CourtRoom comes back NULL),
 --           empty judge name, trailing-space and off-format case numbers,
