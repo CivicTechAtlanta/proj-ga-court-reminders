@@ -64,6 +64,14 @@ class CourtDatabaseStack(Stack):
         self.vpc.add_gateway_endpoint(
             "S3Endpoint", service=aws_ec2.GatewayVpcEndpointAwsService.S3
         )
+        # CourtBotMain runs in these subnets and puts the day's reminders on
+        # the outbox queue. SQS is an AWS service, so an interface endpoint
+        # reaches it without the NAT gateway ADR 004 priced at 32.85/month;
+        # this costs 7.30 per availability zone. Without it every send waits
+        # for a route that does not exist until the Lambda times out.
+        self.vpc.add_interface_endpoint(
+            "SqsEndpoint", service=aws_ec2.InterfaceVpcEndpointAwsService.SQS
+        )
 
         # Anything that should talk to the database joins this group. Owning
         # it here keeps the security-group reference one-directional between

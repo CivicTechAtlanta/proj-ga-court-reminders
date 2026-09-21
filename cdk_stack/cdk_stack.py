@@ -50,6 +50,16 @@ SENT_LOG_RETENTION = Duration.days(30)
 # Georgia, so the fixture dates are re-anchored before anyone opens the
 # environment and before any daily reminder run reads them.
 RESEED_HOUR_UTC = "7"
+# When the daily reminder run fires. EventBridge cron is always UTC, so
+# 13:00 is 8am in Georgia in winter and 9am in summer: the hour a reminder
+# arrives drifts by one across daylight saving. Holding it to the local
+# morning year-round needs EventBridge Scheduler, which this rule is not.
+DAILY_RUN_HOUR_UTC = "13"
+# Whether the daily run queues real texts. While this is true the run
+# queries, generates and reports the reminders but queues nothing, which is
+# where it stays until the copy in reminders/thresholds.py is approved.
+# Clearing it is the switch that starts texting people.
+REMINDERS_DRY_RUN = "true"
 
 
 class CourtReminderStack(Stack):
@@ -73,7 +83,7 @@ class CourtReminderStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
         self._database = database
 
-        self._function("CourtBotMain", "main.py", timeout=Duration.minutes(15))
+        main = self._function("CourtBotMain", "main.py", timeout=Duration.minutes(15))
         sender = self._function(
             "CourtBotMessageSender",
             "message_sender.py",
@@ -81,7 +91,7 @@ class CourtReminderStack(Stack):
             in_vpc=False,
         )
         self._expose_sender(sender)
-        self._outbox(sender)
+        self._produce_reminders(main, self._outbox(sender))
         self._function(
             "CourtBotMessageResponse",
             "message_response.py",
@@ -131,17 +141,17 @@ class CourtReminderStack(Stack):
             description="Secret holding the x-api-key value that SenderUrl requires",
         )
 
-    def _outbox(self, sender: lp.PythonFunction) -> None:
-        """The queue that will feed the text sender, and its dead letters.
+    def _outbox(self, sender: lp.PythonFunction) -> aws_sqs.Queue:
+        """The queue feeding the text sender, and its dead letters.
 
         A queue message carries exactly the JSON the function URL accepts,
         so a reminder reaches the sender the same way by either route:
 
             {"to": "+14045550142", "message": "See you in court Thursday."}
 
-        Nothing produces messages yet. CourtBotMain will once the reminder
-        copy has a home; until then, put one on the queue by hand with
-        `aws sqs send-message` against the CourtBotOutboxUrl output.
+        CourtBotMain fills it on a daily schedule (see _produce_reminders).
+        To put one on by hand instead, `aws sqs send-message` against the
+        CourtBotOutboxUrl output.
 
         The sender reports failures per record, so one bad message never
         re-texts the rest of its batch. A record that keeps failing moves to
@@ -185,6 +195,44 @@ class CourtReminderStack(Stack):
             value=dead_letters.queue_url,
             description="Where a queue message lands after "
             f"{OUTBOX_DELIVERY_ATTEMPTS} failed attempts",
+        )
+        return outbox
+
+    def _produce_reminders(
+        self, main: lp.PythonFunction, outbox: aws_sqs.Queue
+    ) -> None:
+        """The daily run that fills the outbox queue.
+
+        CourtBotMain asks the court database who has a hearing seven, three
+        and one day out and queues a text for each. EventBridge invokes it
+        once a day and nothing else triggers it, so the schedule below is
+        the only thing that makes a reminder happen.
+
+        It stays in the database VPC, which it needs for the query, and so
+        reaches SQS through the interface endpoint in CourtDatabaseStack
+        rather than over the internet.
+
+        Re-running a day is safe: every message carries a stable reminder
+        id and the sender drops ids it has already texted.
+        """
+        outbox.grant_send_messages(main)
+        main.add_environment("OUTBOX_QUEUE_URL", outbox.queue_url)
+        main.add_environment("REMINDERS_DRY_RUN", REMINDERS_DRY_RUN)
+
+        rule = aws_events.Rule(
+            self,
+            "CourtBotDailyReminders",
+            description="Invokes CourtBotMain once a day to queue the "
+            "reminders due that day",
+            schedule=aws_events.Schedule.cron(minute="0", hour=DAILY_RUN_HOUR_UTC),
+        )
+        rule.add_target(aws_events_targets.LambdaFunction(main))
+        CfnOutput(
+            self,
+            "DailyReminderSchedule",
+            value=f"{DAILY_RUN_HOUR_UTC}:00 UTC daily",
+            description="When CourtBotMain queues the day's reminders; "
+            f"dry run while REMINDERS_DRY_RUN is {REMINDERS_DRY_RUN}",
         )
 
     def _sent_log(self, sender: lp.PythonFunction) -> None:

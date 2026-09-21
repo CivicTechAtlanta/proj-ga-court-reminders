@@ -122,17 +122,21 @@ building the Lambda bundles. It has worked when the output ends with something l
 ```
 CourtReminderStack.CourtDatabaseSeedHearings = 13
 ...
-Local Lambdas are ready. Run: /script/run CourtBotMain script_helpers/events/hello-api.json
+Local Lambdas are ready. Run: ./script/run CourtBotMain script_helpers/events/hello-api.json
 ```
 
 ### Step 5: Try it
 
-Invoke the main Lambda, which queries the database for hearings due for a
-reminder and returns them as JSON (13 of them right after a start):
+Invoke the main Lambda, which asks the database who has a hearing seven,
+three and one day out and reports the reminders due for each (eight, three
+and two right after a start):
 
 ```bash
-./script/run CourtBotMain scripts/events/hello-api.json
+./script/run CourtBotMain
 ```
+
+It queues nothing while the message copy is still placeholder text; see
+[The daily reminder run](#the-daily-reminder-run).
 
 Run the tests. The Postgres integration tests run against the Floci
 database; the SQL Server ones skip unless you point them at a SQL Server:
@@ -217,7 +221,7 @@ under `cdk_stack/`), use `./script/reset` instead.
 
 To add a Lambda: add the handler under `lambda/`, register it with a unique
 construct name in `cdk_stack/cdk_stack.py`, add a sample event under
-`scripts/events/` if it needs one, then `./script/reset` and invoke it.
+`script_helpers/events/` if it needs one, then `./script/reset` and invoke it.
 `./script/run` calls the function directly; it does not exercise SQS,
 event-source mappings, retries, or a DLQ.
 
@@ -288,7 +292,7 @@ Secrets Manager inside Floci, exactly as it will from AWS.
 ```
 
 After changing anything in `.env`, run `./script/reset` rather than
-`/script/redeploy`. Hotswap deploys skip secret changes, so a plain deploy
+`./script/redeploy`. Hotswap deploys skip secret changes, so a plain deploy
 leaves the old values in place and you will chase a problem that is not there.
 
 #### Route 3: from Insomnia or curl
@@ -393,8 +397,9 @@ so a reminder reaches the sender the same way by either route:
 {"to": "+14045550142", "message": "See you in court Thursday."}
 ```
 
-Nothing produces messages yet. `CourtBotMain` will once the reminder copy has
-a home; until then, put one on the queue by hand:
+`CourtBotMain` fills it on a daily schedule (see
+[The daily reminder run](#the-daily-reminder-run)). To put one on by hand
+instead:
 
 ```bash
 aws sqs send-message --region us-east-2 --queue-url <CourtBotOutboxUrl> \
@@ -423,17 +428,17 @@ defaults to TrueDialog's channel 22). `./script/setup` copies them into the
 secret inside Floci, creates the same function URL there (its address is the
 `SenderUrl` output), and the Lambda reads the secret exactly as it will in
 AWS. Hotswap deploys skip secret changes, so after editing those values run
-`/script/reset`. Direct invocations need no key:
+`./script/reset`. Direct invocations need no key:
 
 ```bash
-/script/run CourtBotMessageSender
+./script/run CourtBotMessageSender
 echo '{"to": "+14045550142", "message": "Hello from GA Court Reminders"}' > /tmp/sms.json
-/script/run CourtBotMessageSender /tmp/sms.json
+./script/run CourtBotMessageSender /tmp/sms.json
 ```
 
 Every route takes its destination from the request, never from `.env`:
 Insomnia from its own `test_number` variable, an invoke or a `curl` from the
-`to` field, and `/script/sms/verify` from a phone number argument provided. The Lambda has no
+`to` field, and `./script/sms/verify` from a phone number argument provided. The Lambda has no
 configured recipient at all, which is why a message without one fails
 instead of texting somebody unexpected.
 
@@ -463,6 +468,92 @@ nothing. To send one real text, name the recipient:
 
 The recipient is an argument rather than a setting, so no configured value
 can quietly become the destination.
+
+### The daily reminder run
+
+`CourtBotMain` is the producer: once a day it asks the court database who has
+a hearing seven, three and one day out, turns each into a text, and puts it on
+the outbox queue. `CourtBotDailyReminders`, an EventBridge rule, is the only
+thing that invokes it.
+
+```
+EventBridge -> CourtBotMain -> CourtBotOutbox -> CourtBotMessageSender
+```
+
+The message copy lives in `lambda/reminders/thresholds.py`, one class per
+threshold with one `message()` each. Everything around it -- the query window,
+phone normalization, the ids, batching and queueing -- is in
+`lambda/reminders/logic.py` and is the same for all three.
+
+**Nothing is texted yet.** The copy is placeholder text marked `[DRAFT]`, and
+the stack deploys with `REMINDERS_DRY_RUN` set, so a run generates the
+reminders, reports them, and queues nothing. Clearing that constant in
+`cdk_stack.py` is the switch that starts texting people.
+
+Run one threshold by hand, or force a dry run whatever the stack says:
+
+```bash
+./script/run CourtBotMain script_helpers/events/reminder-run.json
+```
+
+Running twice in a day is safe. Every message carries a stable `reminder_id`,
+so the second run queues ids the sender has already texted and the sender
+drops them. The id also collapses the same phone number stored in two
+formats, which the reminder query's `DISTINCT` cannot.
+
+The schedule is `cron(0 13 * * ? *)`. EventBridge cron is always UTC, so that
+is 8am in Georgia in winter and 9am in summer.
+
+#### Testing it
+
+The scheduled run and an empty event are the same thing. `./script/run CourtBotMain`
+sends `{}` when given no event file, and that is what EventBridge delivers: no
+threshold named, so all three run. Nothing else needs setting up, and there is
+no way to make the rule itself fire early.
+
+```bash
+./script/run CourtBotMain
+```
+
+Read `would_send` in the response. It holds one entry per reminder with its
+recipient, text and id, and in a dry run it is the only place the copy
+appears -- the logs deliberately carry neither a number nor a message.
+
+Working on one threshold, the loop is edit, deploy, invoke:
+
+```bash
+./script/redeploy
+```
+
+```bash
+./script/run CourtBotMain script_helpers/events/reminder-run.json
+```
+
+That event asks for `ONE_DAY` alone and forces a dry run whatever the stack
+says. Copy it for another threshold. `dry_run` can only be turned on this way,
+never off; what gets queued is the stack's decision.
+
+Faster still, and no Docker needed: the unit tests render the same copy
+against fixtures, and `hearing()` in `tests/test_reminders.py` builds a
+`Hearing` to assert against.
+
+```bash
+uv run pytest tests/test_reminders.py tests/test_main_handler.py
+```
+
+To watch messages actually reach the queue, set `REMINDERS_DRY_RUN` to
+`"false"` in `cdk_stack.py` and deploy. Unlike a secret, an environment
+variable does survive a hotswap, so `./script/redeploy` is enough. The sender
+then picks each message up and fails on the TrueDialog credentials unless
+`.env` is filled in. Put the constant back afterwards.
+
+| Symptom | Cause |
+|---|---|
+| `THREE_DAYS` and `ONE_DAY` report far fewer than `SEVEN_DAYS` | expected: the fixtures are densest at seven days. A fresh seed holds 13 hearings there against 3 and 2 |
+| every threshold reports `0` hearings | the fixture dates have drifted past their window; `./script/db/reset` |
+| `queued` stays `0` | `REMINDERS_DRY_RUN`, which is the default |
+| a copy edit does not show up | `./script/redeploy` has not run |
+| a change under `cdk_stack/` does nothing | needs `./script/reset`; Floci cannot update CloudFormation in place |
 
 ### Credentials and what never to commit
 
