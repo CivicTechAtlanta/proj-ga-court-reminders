@@ -218,6 +218,7 @@ def test_postgres_seed_runs_each_script_as_one_batch_without_creating_a_database
         "01-schema.sql": 1,
         "02-reference-data.sql": 1,
         "03-fixtures.sql": 1,
+        "04-phone-type-citext.sql": 1,
     }
     schema = target.log[0]
     assert "DROP SCHEMA IF EXISTS dbo CASCADE" in schema

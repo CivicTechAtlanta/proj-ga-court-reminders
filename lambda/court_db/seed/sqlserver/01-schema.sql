@@ -64,6 +64,11 @@ CREATE TABLE dbo.tblCaseParty (
 -- No unique constraint on (PartyID, PhoneType, PhoneNumber) and no CHECK on
 -- PhoneType: prod data has duplicate rows and dirty type labels, and the
 -- fixtures seed both on purpose (see seed/postgres/01-schema.sql).
+-- PhoneType takes the database collation, which is case-insensitive by
+-- default (SQL_Latin1_General_CP1_CI_AS), so the reminder query's
+-- IN ('CELL','MOBILE') also matches 'Cell'. That is the prod behaviour the
+-- Postgres schema reproduces with citext; leave this column uncollated so
+-- both sides keep tracking whatever the server default is.
 CREATE TABLE dbo.tblPartyPhone (
     PartyPhoneID int IDENTITY(1,1) PRIMARY KEY,
     PartyID      int NOT NULL REFERENCES dbo.tblParty (PartyID),

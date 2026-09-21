@@ -57,7 +57,10 @@ def test_every_reminder_lead_time_has_a_clean_case_to_fire_on(repository):
     if not any(counts.values()):
         pytest.skip("fixture dates have aged out; run: ./script/db/reset")
 
-    assert counts == {7: 12, 3: 3, 1: 2}
+    # Same numbers SQL Server returns; test_court_db_seed_integration.py
+    # asserts the seven-day one as SEVEN_DAY_ROWS and compares the two
+    # engines row for row. Change one and the other has to move with it.
+    assert counts == {7: 13, 3: 3, 1: 2}
     for days, case_number in ladder.items():
         matching = [
             hearing
@@ -74,8 +77,27 @@ def test_every_reminder_lead_time_has_a_clean_case_to_fire_on(repository):
 def test_upcoming_hearings_respects_the_phone_type_filter(repository):
     # Phone NUMBERS stay dirty on purpose (ADR 002 seeds empty and garbage
     # values for downstream normalization); only the TYPE filter is strict.
+    # Casing is not part of that strictness: prod's collation is
+    # case-insensitive and PhoneType is citext here to match, so a row typed
+    # 'Cell' comes back as 'Cell' and belongs in the result.
     for hearing in repository.upcoming_hearings(days_ahead=7):
-        assert hearing.phone_type in {"CELL", "MOBILE"}
+        assert hearing.phone_type.upper() in {"CELL", "MOBILE"}
+
+
+def test_upcoming_hearings_matches_dirty_phone_type_casing(repository):
+    # The regression this pins: party 5 has a second phone row typed 'Cell'.
+    # Production texts that number; a case-sensitive local database would
+    # hide her from every local test. See ADR 002.
+    hearings = repository.upcoming_hearings(days_ahead=7)
+    if not hearings:
+        pytest.skip("fixture dates have aged out; run: . script/db/reset")
+
+    assert ("Cell", "404-555-0112") in {
+        (hearing.phone_type, hearing.phone_number) for hearing in hearings
+    }
+    # 'CELL PHONE' is a different label, not a casing variant, and stays out
+    # on both engines.
+    assert "CELL PHONE" not in {hearing.phone_type.upper() for hearing in hearings}
 
 
 def test_hearings_for_case_returns_all_dates_for_one_case(repository):
