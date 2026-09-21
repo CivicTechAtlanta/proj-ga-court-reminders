@@ -4,7 +4,7 @@
 -- on day one; `./script/db/reset` re-anchors them.
 --
 -- Expected from the reminder query's seven-day window right after loading:
--- exactly 12 rows (13 without DISTINCT). The 7/3/1 reminder ladder at the
+-- exactly 13 rows (14 without DISTINCT). The 7/3/1 reminder ladder at the
 -- bottom of this file also puts 3 rows three days out and 2 rows one day out.
 --
 -- Data quality deliberately mirrors the benchmark database — clean rows are
@@ -15,8 +15,11 @@
 --   phones: E.164, parens, dots, dashes, bare digits, extension text, and
 --           garbage (placeholder text, truncated, empty); DISTINCT only
 --           collapses byte-identical rows
---   types:  PhoneType is dirty too ('Cell', 'CELL PHONE') — the query's
---           case-sensitive IN ('CELL','MOBILE') silently misses those rows
+--   types:  PhoneType is dirty too ('Cell', 'CELL PHONE'). Prod compares
+--           case-insensitively, so IN ('CELL','MOBILE') does match 'Cell'
+--           (PhoneType is citext here to reproduce that — see
+--           04-phone-type-citext.sql);
+--           'CELL PHONE' is a different label and is missed on both engines
 --   misc:   courtroom code with no lookup row (CourtRoom comes back NULL),
 --           empty judge name, trailing-space and off-format case numbers,
 --           NULL FiledDate
@@ -50,9 +53,10 @@ INSERT INTO tblParty (PartyID, FirstName, LastName) VALUES
 --                                  (not FirstDefendantID)
 --   2 CR-2026-000102 Clark     IN  covers PhoneType 'MOBILE'
 --   3 CR-2026-000103 Hale      OUT only a HOME phone; case number has a trailing space
---   4 CR-2026-000104 Whitfield IN  event exactly at CURRENT_DATE+7 00:00 (inclusive
---                                  lower bound); her second phone row has dirty
---                                  PhoneType 'Cell' and is silently missed
+--   4 CR-2026-000104 Whitfield IN  2 rows - event exactly at CURRENT_DATE+7 00:00
+--                                  (inclusive lower bound); her second phone row has
+--                                  dirty PhoneType 'Cell', which the case-insensitive
+--                                  filter matches, so she is texted on both numbers
 --   5 CR-2026-000105 Ortega    OUT event exactly at CURRENT_DATE+8 00:00 (exclusive
 --                                  upper bound); NULL FiledDate
 --   6 CR-2026-000106 Raman     OUT event +3d, outside window
@@ -63,7 +67,9 @@ INSERT INTO tblParty (PartyID, FirstName, LastName) VALUES
 --                                  returned; co-defendant O'Brien excluded
 --   9 CR-2026-000109 Lin       IN  daily status hearings +1..+14d keep the query
 --                                  non-empty for a week after first start without a
---                                  db-reset; her 'CELL PHONE' row is silently missed
+--                                  db-reset; her 'CELL PHONE' row is a different
+--                                  label, not just different casing, so it is
+--                                  silently missed on both engines
 --  10 CR-2026-000110 Nunez     OUT no phone row; INNER JOIN drops the case
 --  11 26CR000111     Webb      IN  3 rows - garbage numbers (placeholder text,
 --                                  truncated, empty) flow into results; unmapped
@@ -105,7 +111,7 @@ INSERT INTO tblPartyPhone (PartyID, PhoneType, PhoneNumber) VALUES
     (3,  'MOBILE',     '4045550103'),            -- bare 10 digits
     (4,  'HOME',       '404.555.0104'),          -- dotted; wrong phone type: excluded
     (5,  'CELL',       '+14045550105'),          -- clean E.164
-    (5,  'Cell',       '404-555-0112'),          -- dirty type casing: silently missed
+    (5,  'Cell',       '404-555-0112'),          -- dirty casing: matched, filter is CI
     (6,  'CELL',       '1-404-555-0106'),        -- leading country code, no plus
     (7,  'CELL',       '+1 (404) 555-0107'),     -- mixed styles
     (8,  'CELL',       '404-555-0108'),
@@ -114,7 +120,7 @@ INSERT INTO tblPartyPhone (PartyID, PhoneType, PhoneNumber) VALUES
     (9,  'CELL',       '404 555 0109'),          -- inner spaces
     (9,  'MOBILE',     '404-555-0110 ext. 12'),  -- extension text
     (10, 'CELL',       '404-555-0111'),
-    (10, 'CELL PHONE', '(404) 555-0111'),        -- nonstandard type label: silently missed
+    (10, 'CELL PHONE', '(404) 555-0111'),        -- nonstandard label: missed on both engines
     -- party 11 (Nunez) deliberately has no phone row
     (12, 'CELL',       'UNKNOWN'),               -- placeholder text instead of a number
     (12, 'CELL',       '5550134'),               -- truncated 7-digit local number

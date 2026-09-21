@@ -120,7 +120,7 @@ seeds it with the court fixtures. It will also verify the data in the database a
 building the Lambda bundles. It has worked when the output ends with something like:
 
 ```
-CourtReminderStack.CourtDatabaseSeedHearings = 12
+CourtReminderStack.CourtDatabaseSeedHearings = 13
 ...
 Local Lambdas are ready. Run: /script/run CourtBotMain script_helpers/events/hello-api.json
 ```
@@ -128,7 +128,7 @@ Local Lambdas are ready. Run: /script/run CourtBotMain script_helpers/events/hel
 ### Step 5: Try it
 
 Invoke the main Lambda, which queries the database for hearings due for a
-reminder and returns them as JSON (12 of them right after a start):
+reminder and returns them as JSON (13 of them right after a start):
 
 ```bash
 ./script/run CourtBotMain scripts/events/hello-api.json
@@ -574,7 +574,7 @@ rows loaded
   tblCaseEvent     28
 
 hearings the reminder query returns
-  seven days out    12
+  seven days out    13
   three days out     3
   one day out        2
 ```
@@ -605,7 +605,7 @@ rows loaded
   ...
 
 hearings the reminder query returns
-  seven days out    12
+  seven days out    13
   three days out     3
   one day out        2
 
@@ -656,14 +656,14 @@ After a plain reseed, with no phone of your own:
 
 | Cadence | Rows the reminder query returns | With a dialable number | Distinct numbers after normalizing |
 |---|---|---|---|
-| seven days out | 12 | 8 | 7 |
+| seven days out | 13 | 9 | 8 |
 | three days out | 3 | 3 | 3 |
 | one day out | 2 | 2 | 2 |
 
 Seven days out is where the dirty data lives, and the three columns are three
 different bugs waiting to happen. Four rows carry numbers nobody can dial
 (`''`, `'UNKNOWN'`, a truncated `'5550134'`, and one with `ext. 12` trailing).
-Of the eight that are dialable, two are the same person's number stored in two
+Of the nine that are dialable, two are the same person's number stored in two
 formats — `'(404) 555-0108'` and `'404-555-0108'` — which `SELECT DISTINCT`
 cannot collapse. Anything that texts per row, rather than per normalized
 number, texts that person twice.
@@ -722,7 +722,7 @@ uv run cdk deploy CourtReminderStack -c reseed=$(date +%s)
 ```
 
 The stack output `CourtDatabaseSeedHearings` reports the seven-day
-reminder-query row count right after seeding, which should be 12.
+reminder-query row count right after seeding, which should be 13.
 
 ### The dev database re-seeds itself daily
 

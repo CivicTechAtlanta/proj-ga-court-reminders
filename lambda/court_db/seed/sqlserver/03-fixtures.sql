@@ -1,6 +1,6 @@
 -- Synthetic case data, row for row the same as seed/postgres/03-fixtures.sql, which
 -- documents every scenario and the deliberately dirty data quality.
--- Expected reminder-query result right after loading: exactly 12 rows seven
+-- Expected reminder-query result right after loading: exactly 13 rows seven
 -- days out, 3 rows three days out, 2 rows one day out.
 --
 -- Event dates are anchored to the server's GETDATE() at load time, so the
@@ -67,7 +67,7 @@ INSERT INTO dbo.tblPartyPhone (PartyID, PhoneType, PhoneNumber) VALUES
     (3,  'MOBILE',     '4045550103'),            -- bare 10 digits
     (4,  'HOME',       '404.555.0104'),          -- dotted; wrong phone type: excluded
     (5,  'CELL',       '+14045550105'),          -- clean E.164
-    (5,  'Cell',       '404-555-0112'),          -- dirty type casing: silently missed
+    (5,  'Cell',       '404-555-0112'),          -- dirty casing: matched, collation is CI
     (6,  'CELL',       '1-404-555-0106'),        -- leading country code, no plus
     (7,  'CELL',       '+1 (404) 555-0107'),     -- mixed styles
     (8,  'CELL',       '404-555-0108'),
@@ -76,7 +76,7 @@ INSERT INTO dbo.tblPartyPhone (PartyID, PhoneType, PhoneNumber) VALUES
     (9,  'CELL',       '404 555 0109'),          -- inner spaces
     (9,  'MOBILE',     '404-555-0110 ext. 12'),  -- extension text
     (10, 'CELL',       '404-555-0111'),
-    (10, 'CELL PHONE', '(404) 555-0111'),        -- nonstandard type label: silently missed
+    (10, 'CELL PHONE', '(404) 555-0111'),        -- nonstandard label: missed on both engines
     -- party 11 (Nunez) deliberately has no phone row
     (12, 'CELL',       'UNKNOWN'),               -- placeholder text instead of a number
     (12, 'CELL',       '5550134'),               -- truncated 7-digit local number

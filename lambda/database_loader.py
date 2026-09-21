@@ -86,7 +86,7 @@ def _seed(phone=None) -> dict:
     summary["hearings_by_lead_time"] = counts
     # Kept as its own key: the CourtDatabaseSeedHearings stack output and
     # `./script/db/verify` both mean the seven-day window specifically, and
-    # expect 12 rows right after loading.
+    # expect 13 rows right after loading.
     summary["upcoming_hearings"] = counts["7"]
     print(json.dumps(summary))
     return summary
