@@ -8,8 +8,8 @@ the Lambda times out.
 Set OUTBOX_QUEUE_URL to the CourtBotOutboxUrl stack output. With it unset,
 or with REMINDERS_DRY_RUN set to a true value, nothing is queued and
 nothing is texted: the run reports what it would have sent instead. That
-is the default while the message copy is still placeholder text, and it is
-the same shape of stand-in as the sender's NoSentLog.
+is the default until the message copy is approved, and it is the same
+shape of stand-in as the sender's NoSentLog.
 """
 
 import json

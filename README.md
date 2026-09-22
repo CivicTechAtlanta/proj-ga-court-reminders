@@ -135,8 +135,8 @@ and two right after a start):
 ./script/run CourtBotMain
 ```
 
-It queues nothing while the message copy is still placeholder text; see
-[The daily reminder run](#the-daily-reminder-run).
+It queues nothing until the copy is approved and the stack's dry-run flag is
+cleared; see [The daily reminder run](#the-daily-reminder-run).
 
 Run the tests. The Postgres integration tests run against the Floci
 database; the SQL Server ones skip unless you point them at a SQL Server:
@@ -485,10 +485,10 @@ threshold with one `message()` each. Everything around it -- the query window,
 phone normalization, the ids, batching and queueing -- is in
 `lambda/reminders/logic.py` and is the same for all three.
 
-**Nothing is texted yet.** The copy is placeholder text marked `[DRAFT]`, and
-the stack deploys with `REMINDERS_DRY_RUN` set, so a run generates the
-reminders, reports them, and queues nothing. Clearing that constant in
-`cdk_stack.py` is the switch that starts texting people.
+**Nothing is texted yet.** The stack deploys with `REMINDERS_DRY_RUN` set, so
+a run generates the reminders, reports them, and queues nothing. Clearing that
+constant in `cdk_stack.py` is the switch that starts texting people, to be
+made once the copy is approved.
 
 Run one threshold by hand, or force a dry run whatever the stack says:
 
@@ -498,8 +498,10 @@ Run one threshold by hand, or force a dry run whatever the stack says:
 
 Running twice in a day is safe. Every message carries a stable `reminder_id`,
 so the second run queues ids the sender has already texted and the sender
-drops them. The id also collapses the same phone number stored in two
-formats, which the reminder query's `DISTINCT` cannot.
+drops them. The id is one per phone number per court date, so it also
+collapses the same number stored in two formats, which the reminder query's
+`DISTINCT` cannot, and a number with two hearings on one day: the copy names
+only the date, so they get one text.
 
 The schedule is `cron(0 13 * * ? *)`. EventBridge cron is always UTC, so that
 is 8am in Georgia in winter and 9am in summer.

@@ -117,12 +117,15 @@ class SenderLogic:
                 continue
             identifier = reminder_id(self.label, hearing, to)
             if identifier in seen:
-                # The query returns one row per phone row, and the same
-                # number stored in two formats survives its DISTINCT (see
-                # ADR 002). Collapsing here rather than leaving it to the
-                # sender's log keeps the queue honest, and matters because
-                # that log degrades to remembering nothing when no table is
-                # configured -- which would text this person twice.
+                # One text per number per court date (see reminder_id). The
+                # query returns a row per phone row per hearing, so this
+                # collapses the same number stored in two formats, which
+                # survives its DISTINCT (see ADR 002), and a number with a
+                # second hearing that day, which the copy cannot tell apart
+                # from the first. Collapsing here rather than leaving it to
+                # the sender's log keeps the queue honest, and matters
+                # because that log degrades to remembering nothing when no
+                # table is configured -- which would text this person twice.
                 skipped["duplicate"] = skipped.get("duplicate", 0) + 1
                 continue
             seen.add(identifier)
@@ -170,8 +173,8 @@ class SenderLogic:
 def placeholder_message(label: str, hearing) -> str:
     """Stand-in copy, marked so it cannot ship unnoticed.
 
-    Every threshold starts with this. Replacing it -- the DRAFT marker
-    included -- is the work described in thresholds.py.
+    What a `days=` sender, or a new threshold whose copy is not written
+    yet, sends. The thresholds in thresholds.py have their own.
     """
     when = hearing.event_datetime
     where = f" in {hearing.court_room}" if hearing.court_room else ""

@@ -12,7 +12,7 @@ logic.py.
 """
 
 from .logic import SenderLogic, placeholder_message
-from .messages import ReminderMessage, recipient, reminder_id
+from .messages import ReminderMessage, court_date, recipient, reminder_id
 from .outbox import DryRunOutbox, Outbox, outbox
 from .thresholds import (
     OneDayReminder,
@@ -32,6 +32,7 @@ __all__ = [
     "SenderLogic",
     "SevenDayReminder",
     "ThreeDayReminder",
+    "court_date",
     "every_sender",
     "outbox",
     "placeholder_message",

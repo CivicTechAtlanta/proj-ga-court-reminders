@@ -532,10 +532,10 @@ def test_the_producer_may_send_to_the_outbox_and_knows_where_it_is():
     )
 
 
-def test_the_producer_queues_nothing_while_the_copy_is_a_draft():
-    """The copy in reminders/thresholds.py is placeholder text. Clearing this
-    flag is the switch that starts texting people, and is meant to be a
-    reviewed change rather than a console toggle."""
+def test_the_producer_queues_nothing_until_the_copy_is_approved():
+    """Nothing is texted until the copy in reminders/thresholds.py is
+    approved. Clearing this flag is the switch that starts texting people,
+    and is meant to be a reviewed change rather than a console toggle."""
     _, reminder = synth(local=False)
     _, producer_resource = producer(reminder)
 
