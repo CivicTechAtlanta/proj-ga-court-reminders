@@ -105,6 +105,6 @@ trailing spaces that SQL Server ignores, which
 `test_hearings_for_case_requires_an_exact_match_on_postgres` pins as a known
 difference. Fixture dates freeze at first start, so the 7-days-out query goes
 stale roughly a week later; `./script/db/reset` re-seeds and re-anchors
-locally, and in AWS a daily EventBridge rule does the same to the dev
+locally, and in AWS a weekly EventBridge rule does the same to the dev
 database. And identifier quoting is a standing trap: all SQL against this
 database must leave identifiers unquoted.

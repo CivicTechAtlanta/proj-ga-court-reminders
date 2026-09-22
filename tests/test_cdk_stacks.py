@@ -141,21 +141,24 @@ def loader(template):
     return logical_id
 
 
-def test_the_dev_database_reseeds_itself_every_morning():
+# What the weekly reseed rule's schedule synthesizes to.
+WEEKLY_RESEED = (
+    f"cron(0 {reminder_module.RESEED_HOUR_UTC} ? * {reminder_module.RESEED_WEEKDAY} *)"
+)
+
+
+def test_the_dev_database_reseeds_itself_once_a_week():
     """Fixture dates are relative to the day they load, so a week after a
-    deploy nothing sits at the 7/3/1 reminder thresholds and the environment
-    is untestable until somebody reseeds it."""
+    reseed nothing sits at the 7/3/1 reminder thresholds. Weekly rather than
+    daily because a week is how long one hearing takes to collect all three
+    reminders, and a daily reseed would re-anchor it before its second."""
     _, reminder = synth(local=False)
 
     ((rule_id, rule),) = [
         (logical_id, resource)
         for logical_id, resource in reminder.find_resources("AWS::Events::Rule").items()
-        if resource["Properties"]["ScheduleExpression"]
-        == f"cron(0 {reminder_module.RESEED_HOUR_UTC} * * ? *)"
+        if resource["Properties"]["ScheduleExpression"] == WEEKLY_RESEED
     ]
-    assert rule["Properties"]["ScheduleExpression"] == (
-        f"cron(0 {reminder_module.RESEED_HOUR_UTC} * * ? *)"
-    )
     (target,) = rule["Properties"]["Targets"]
     assert target["Arn"] == {"Fn::GetAtt": [loader(reminder), "Arn"]}
     # The empty event the loader reads as "seed and return the summary", the
@@ -170,7 +173,14 @@ def test_the_dev_database_reseeds_itself_every_morning():
             "SourceArn": {"Fn::GetAtt": [rule_id, "Arn"]},
         },
     )
-    reminder.has_output("CourtDatabaseDailyReseedRule", {"Value": {"Ref": rule_id}})
+    reminder.has_output("CourtDatabaseWeeklyReseedRule", {"Value": {"Ref": rule_id}})
+
+
+def test_the_weekly_reseed_lands_before_that_days_reminder_run():
+    """Otherwise the reseed day's run reads last week's dates, and the new
+    week's seven-day reminders never go out."""
+    reseed = int(reminder_module.RESEED_HOUR_UTC)
+    assert reseed < int(reminder_module.DAILY_RUN_HOUR_UTC)
 
 
 def test_the_seed_waits_for_its_log_group():
@@ -440,7 +450,7 @@ def test_local_truedialog_secret_is_filled_from_the_environment(monkeypatch):
     assert env["TRUEDIALOG_SECRET_ID"] == {"Ref": logical_id}
 
 
-def test_floci_gets_no_daily_reseed():
+def test_floci_gets_no_weekly_reseed():
     """Nothing schedules a laptop's database at 07:00 UTC, and Floci is not
     where an EventBridge schedule would be proved anyway. Locally the same
     reseed is a person running `./script/db/reset`."""
@@ -449,7 +459,7 @@ def test_floci_gets_no_daily_reseed():
         resource["Properties"]["ScheduleExpression"]
         for resource in reminder.find_resources("AWS::Events::Rule").values()
     ]
-    assert f"cron(0 {reminder_module.RESEED_HOUR_UTC} * * ? *)" not in schedules
+    assert WEEKLY_RESEED not in schedules
 
 
 def test_local_sender_gets_the_same_url_queue_and_a_fixed_key():

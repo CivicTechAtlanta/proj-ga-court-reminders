@@ -8,8 +8,8 @@ databases only.
 
 Invoking it with an empty event re-runs the seed and returns the summary,
 which is how the fixture dates get re-anchored to today. Two things do that:
-`./script/db/reset` on a laptop, and the CourtDatabaseDailyReseed EventBridge
-rule against the AWS dev database every morning (see cdk_stack.py). The
+`./script/db/reset` on a laptop, and the CourtDatabaseWeeklyReseed EventBridge
+rule against the AWS dev database every Monday (see cdk_stack.py). The
 summary counts hearings at each reminder lead time, so one look at the run
 says whether every threshold has something to find.
 
