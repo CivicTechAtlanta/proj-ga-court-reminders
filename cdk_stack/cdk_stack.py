@@ -46,9 +46,12 @@ OUTBOX_DELIVERY_ATTEMPTS = 3
 # How long a sent reminder id is remembered. Long enough that no retry or
 # redelivery can outlive it, short enough that the table stays small.
 SENT_LOG_RETENTION = Duration.days(30)
-# When the AWS dev database reseeds itself, in UTC: the small hours in
-# Georgia, so the fixture dates are re-anchored before anyone opens the
-# environment and before any daily reminder run reads them.
+# When the AWS dev database reseeds itself: once a week, in the small hours
+# in Georgia, so the fixture dates are re-anchored before anyone opens the
+# environment and before that day's reminder run reads them. Weekly because
+# a week is one hearing's whole pass through the 7/3/1 reminders (see
+# _weekly_reseed).
+RESEED_WEEKDAY = "MON"
 RESEED_HOUR_UTC = "7"
 # When the daily reminder run fires. EventBridge cron is always UTC, so
 # 13:00 is 8am in Georgia in winter and 9am in summer: the hour a reminder
@@ -373,22 +376,28 @@ class CourtReminderStack(Stack):
             description="Seven-day reminder-query row count right after seeding; "
             "expect 12",
         )
-        self._daily_reseed(loader)
+        self._weekly_reseed(loader)
 
-    def _daily_reseed(self, loader: lp.PythonFunction) -> None:
-        """Re-anchor the dev database's fixture dates every morning.
+    def _weekly_reseed(self, loader: lp.PythonFunction) -> None:
+        """Re-anchor the dev database's fixture dates once a week.
 
         The fixtures are relative to the day they load: a hearing seven days
-        out is six days out tomorrow, so within a week nothing sits at the
-        seven, three and one day reminder thresholds and the environment
-        stops being worth testing against. Deploying is the only other thing
-        that reseeds, and deploys are not daily.
+        out is six days out tomorrow, and a week later it has passed, so
+        without a reseed the environment stops being worth testing against.
+
+        A week is also exactly one hearing's pass through the reminders. The
+        clean case seeded seven days out is texted seven days out on the
+        reseed day, three days out four days later and one day out on the
+        sixth, and the next reseed replaces it on the morning of its hearing.
+        That lets a tester follow one hearing through all three reminders.
+        Reseeding daily would re-anchor it before its second.
 
         This reloads through the same Lambda, which drops and recreates every
-        table, so anything entered in the dev database by hand is gone the
-        next morning. That is the bargain the seed already makes on every
-        deploy, now made once a day. Nothing here is safe to point at a
-        database anyone depends on.
+        table, so anything entered in the dev database by hand, a tester's
+        phone included, lasts until the next reseed. A reseed by hand
+        re-anchors to the day it runs: on any other day it starts the week
+        over, and the scheduled one then cuts that week short. Nothing here
+        is safe to point at a database anyone depends on.
 
         The event is the empty one the loader reads as "seed and return the
         summary", the same event `./script/db/reset` sends. Re-running a seed is
@@ -402,10 +411,12 @@ class CourtReminderStack(Stack):
             return
         rule = aws_events.Rule(
             self,
-            "CourtDatabaseDailyReseed",
-            description="Reload the court database fixtures daily so their dates "
-            "stay anchored to today",
-            schedule=aws_events.Schedule.cron(minute="0", hour=RESEED_HOUR_UTC),
+            "CourtDatabaseWeeklyReseed",
+            description="Reload the court database fixtures weekly so their dates "
+            "stay anchored to this week",
+            schedule=aws_events.Schedule.cron(
+                minute="0", hour=RESEED_HOUR_UTC, week_day=RESEED_WEEKDAY
+            ),
             targets=[
                 aws_events_targets.LambdaFunction(
                     loader, event=aws_events.RuleTargetInput.from_object({})
@@ -414,10 +425,10 @@ class CourtReminderStack(Stack):
         )
         CfnOutput(
             self,
-            "CourtDatabaseDailyReseedRule",
+            "CourtDatabaseWeeklyReseedRule",
             value=rule.rule_name,
             description="EventBridge rule reloading the court database fixtures "
-            f"every day at {RESEED_HOUR_UTC}:00 UTC",
+            f"every {RESEED_WEEKDAY} at {RESEED_HOUR_UTC}:00 UTC",
         )
 
     def _function(

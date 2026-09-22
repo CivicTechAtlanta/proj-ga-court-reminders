@@ -11,8 +11,8 @@ was seven days out yesterday is six days out now, so within a week the 7/3/1
 reminder thresholds stop matching anything and the fixtures are untestable
 until somebody reseeds.
 
-The AWS dev database gets the same treatment every morning from the
-CourtDatabaseDailyReseed rule in cdk_stack.py. This is the laptop
+The AWS dev database gets the same treatment every Monday from the
+CourtDatabaseWeeklyReseed rule in cdk_stack.py. This is the laptop
 equivalent, and `./script/db/reset` runs it.
 
 Everything in the database is destroyed, including anything added by hand.

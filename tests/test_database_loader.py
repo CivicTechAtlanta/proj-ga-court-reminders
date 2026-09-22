@@ -189,7 +189,7 @@ def test_a_phone_in_the_event_points_the_ladder_at_it(seeded):
 
 
 def test_a_seed_without_a_phone_rewrites_nothing(seeded):
-    """What the daily EventBridge reseed sends, so the schedule can never put
+    """What the weekly EventBridge reseed sends, so the schedule can never put
     a real number in the dev database."""
     summary = database_loader.handler({}, None)
 

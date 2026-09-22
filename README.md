@@ -738,7 +738,7 @@ Three things worth knowing:
   does its job.
 - **The number is an argument, never a setting.** There is nowhere to
   configure it, so no stored value can quietly become the destination. The
-  daily AWS reseed passes no number at all. This is the same rule
+  weekly AWS reseed passes no number at all. This is the same rule
   [`./script/sms/verify`](script/sms/verify) follows.
 
 ### What each cadence contains
@@ -765,8 +765,9 @@ without fighting the dirty data first.
 ### The AWS dev database does this for itself
 
 Nobody has to remember to reseed the shared dev environment: an EventBridge
-rule reloads it every morning at 07:00 UTC. See
-[The dev database re-seeds itself daily](#the-dev-database-re-seeds-itself-daily).
+rule reloads it every Monday at 07:00 UTC, which leaves a week for one hearing
+to go through all three reminders. See
+[The dev database re-seeds itself weekly](#the-dev-database-re-seeds-itself-weekly).
 
 ### When it does not work
 
@@ -815,16 +816,50 @@ uv run cdk deploy CourtReminderStack -c reseed=$(date +%s)
 The stack output `CourtDatabaseSeedHearings` reports the seven-day
 reminder-query row count right after seeding, which should be 13.
 
-### The dev database re-seeds itself daily
+### The dev database re-seeds itself weekly
 
 Deploying is not frequent enough to keep date-relative fixtures useful, so the
-`CourtDatabaseDailyReseed` EventBridge rule invokes `CourtBotDatabaseLoader`
-every day at 07:00 UTC, before the daily reminder run reads the database. It
-sends the same empty event `./script/db/reset` sends, and the CloudWatch log
+`CourtDatabaseWeeklyReseed` EventBridge rule invokes `CourtBotDatabaseLoader`
+every Monday at 07:00 UTC, before that day's reminder run reads the database.
+It sends the same empty event `./script/db/reset` sends, and the CloudWatch log
 for that run prints the row counts and how many hearings sit at each of the
 seven, three and one day thresholds.
 
+Weekly, because a week is how long one hearing takes to collect all three
+reminders. The daily reminder run finds the clean case at each lead time on
+these days:
+
+| Day | Seven days out | Three days out | One day out |
+|---|---|---|---|
+| Monday | `CR-2026-000112` | `CR-2026-000113` | `CR-2026-000114` |
+| Wednesday | | | `CR-2026-000113` |
+| Friday | | `CR-2026-000112` | |
+| Sunday | | | `CR-2026-000112` |
+
+`CR-2026-000112` is the one to follow: seven, three and one day out, for a
+hearing the next Monday, the morning the reseed replaces it. The dirty rows
+seeded seven days out drift the same way, so mid-week counts move with them:
+the three-day threshold finds them on Friday and the one-day threshold on
+Sunday. One fixture case has a hearing every day for two weeks, so no
+threshold ever comes back empty.
+
+To follow the week on your own phone, put it on those three cases on a Monday,
+after the reseed. The loader's function name starts with
+`CourtReminderStack-CourtBotDatabaseLoader`:
+
+```bash
+aws lambda invoke --region us-east-2 --function-name <CourtBotDatabaseLoader> --cli-binary-format raw-in-base64-out --payload '{"phone": "+14045551234"}' seed.json
+```
+
+That is a reseed as well: it reloads everything, anchored to the day it runs.
+On a Monday that moves no dates, but on any other day it starts the week over
+from that day, and the next Monday's reseed cuts it short. After 13:00 UTC,
+Monday's reminders have already run; invoke `CourtBotMain` once by hand to
+get them. And nothing reaches your phone while `REMINDERS_DRY_RUN` is on; see
+[The daily reminder run](#the-daily-reminder-run).
+
 This reloads every table, so **anything entered in the AWS dev database by
-hand is gone the next morning**. The schedule exists only in AWS mode; on
-Floci a person runs `./script/db/reset`. Nothing in this stack is safe to
-point at a database anyone depends on.
+hand, your number included, is gone the next Monday**. A deploy that changes
+the seed scripts reseeds too. The schedule exists only in AWS mode; on Floci a
+person runs `./script/db/reset`. Nothing in this stack is safe to point at a
+database anyone depends on.
