@@ -4,8 +4,8 @@
 each, and nothing else to learn: the query window, phone handling, ids,
 batching and queueing are all done for you in logic.py.
 
-To write a threshold's copy, replace its `message()` body. What you are
-handed is a `Hearing` (see court_db/models.py):
+To change a threshold's copy, edit its `message()`. What you are handed is
+a `Hearing` (see court_db/models.py):
 
     hearing.case_number      "CR-2026-000101" (may have a trailing space)
     hearing.event_type       "Arraignment"
@@ -16,23 +16,29 @@ handed is a `Hearing` (see court_db/models.py):
                              it, the pipeline normalizes and validates it
     hearing.case_id, hearing.case_party_id
 
-Return the text to send, or None to send this person nothing -- that is
-where per-threshold rules go (an opt-out, a paid case, a hearing type that
-should not be texted about).
+`court_date(hearing)` is the hearing's day as the copy writes it, "Monday,
+September 28". Return the text to send, or None to send this person
+nothing -- that is where per-threshold rules go (an opt-out, a paid case, a
+hearing type that should not be texted about).
 
-Two things to know before your copy ships:
+Three things to know before your copy ships:
 
-  * Everything here is placeholder text, marked [DRAFT], and the stack
-    deploys with REMINDERS_DRY_RUN set, so nothing is texted. Clearing
-    that flag is a deliberate one-line change in cdk_stack.py, to be made
-    once the copy is approved.
+  * A reminder is one text per phone number per court date. A number with
+    two hearings that day is sent the first one's text (the query orders
+    by time); the copy below names only the day, so both would read the
+    same anyway.
+  * The stack deploys with REMINDERS_DRY_RUN set, so nothing is texted.
+    Clearing that flag is a deliberate one-line change in cdk_stack.py, to
+    be made once the copy is approved.
   * Keep a message inside one SMS segment (160 GSM-7 characters) unless a
     longer text is intended; TrueDialog bills and splits by segment.
+    tests/test_reminders.py holds every threshold to that.
 """
 
 from enum import Enum
 
-from .logic import SenderLogic, placeholder_message
+from .logic import SenderLogic
+from .messages import court_date
 
 
 class ReminderThreshold(Enum):
@@ -76,8 +82,11 @@ class SevenDayReminder(SenderLogic):
     threshold = ReminderThreshold.SEVEN_DAYS
 
     def message(self, hearing):
-        # TODO(seven-day): replace with approved copy.
-        return placeholder_message(self.label, hearing)
+        return (
+            "ATL Court Reminders : Seven days notice. "
+            f"You have a court date on {court_date(hearing)}. "
+            "Reply STOP to discontinue."
+        )
 
 
 class ThreeDayReminder(SenderLogic):
@@ -86,8 +95,11 @@ class ThreeDayReminder(SenderLogic):
     threshold = ReminderThreshold.THREE_DAYS
 
     def message(self, hearing):
-        # TODO(three-day): replace with approved copy.
-        return placeholder_message(self.label, hearing)
+        return (
+            "ATL Court Reminders : Three days until your court date. "
+            f"You have a court date on {court_date(hearing)}. "
+            "Reply STOP to discontinue."
+        )
 
 
 class OneDayReminder(SenderLogic):
@@ -96,8 +108,11 @@ class OneDayReminder(SenderLogic):
     threshold = ReminderThreshold.ONE_DAY
 
     def message(self, hearing):
-        # TODO(one-day): replace with approved copy.
-        return placeholder_message(self.label, hearing)
+        return (
+            "ATL Court Reminders : Your court date is tomorrow, "
+            f"on {court_date(hearing)}. "
+            "Reply STOP to discontinue."
+        )
 
 
 _SENDERS = {

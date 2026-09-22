@@ -13,6 +13,7 @@ from reminders import (
     ReminderThreshold,
     SenderLogic,
     SevenDayReminder,
+    court_date,
     every_sender,
     outbox,
     reminder_id,
@@ -158,6 +159,67 @@ def test_generate_accepts_hearings_from_an_earlier_query():
     assert len(one.generate(one.query())) == 1
 
 
+# ------------------------------------------------------------------- copy
+
+# GSM 03.38's basic character set. A text made only of these is billed at
+# 160 characters a segment; one character outside it, such as a curly
+# apostrophe pasted from a word processor, re-encodes the whole text at 70.
+GSM_7 = set(
+    "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?"
+    "¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+)
+
+
+def copy_for(threshold, when) -> str:
+    """The text one threshold sends about a hearing at `when`."""
+    (message,) = sender_for(
+        threshold,
+        repository=FakeRepository([hearing(event_datetime=when)]),
+        outbox=DryRunOutbox(),
+    ).generate()
+    return message.message
+
+
+@pytest.mark.parametrize(
+    ("threshold", "expected"),
+    [
+        (
+            ReminderThreshold.SEVEN_DAYS,
+            "ATL Court Reminders : Seven days notice. You have a court date "
+            "on Monday, September 28. Reply STOP to discontinue.",
+        ),
+        (
+            ReminderThreshold.THREE_DAYS,
+            "ATL Court Reminders : Three days until your court date. You have "
+            "a court date on Monday, September 28. Reply STOP to discontinue.",
+        ),
+        (
+            ReminderThreshold.ONE_DAY,
+            "ATL Court Reminders : Your court date is tomorrow, on Monday, "
+            "September 28. Reply STOP to discontinue.",
+        ),
+    ],
+)
+def test_each_threshold_sends_its_own_copy(threshold, expected):
+    assert copy_for(threshold, datetime(2026, 9, 28, 9, 0)) == expected
+
+
+@pytest.mark.parametrize("when", [datetime(2026, 10, 5, 14, 30), "2026-10-05 14:30:00"])
+def test_a_court_date_is_written_the_way_a_person_says_it(when):
+    """Weekday and month spelled out, no leading zero, no year, no time.
+    The string is what a driver might hand back instead of a datetime."""
+    assert court_date(hearing(event_datetime=when)) == "Monday, October 5"
+
+
+@pytest.mark.parametrize("threshold", list(ReminderThreshold))
+def test_every_threshold_fits_in_one_sms_segment(threshold):
+    """TrueDialog bills and splits by segment. Wednesday, September 30 is
+    the longest date the copy can carry."""
+    text = copy_for(threshold, datetime(2026, 9, 30, 9, 0))
+    assert len(text) <= 160
+    assert set(text) <= GSM_7, set(text) - GSM_7
+
+
 # ------------------------------------------------------------ reminder ids
 
 
@@ -194,6 +256,32 @@ def test_one_number_stored_two_ways_is_texted_once():
     assert skipped == {"duplicate": 1}
 
 
+def test_a_number_with_two_hearings_on_one_day_gets_one_text():
+    """Two cases in court the same day, one phone. The copy names only the
+    date, so a second text would repeat the first word for word."""
+    morning = hearing(event_datetime=datetime(2026, 9, 28, 9, 0))
+    afternoon = hearing(
+        case_id=5,
+        case_party_id=6,
+        case_number="CR-2026-000105",
+        event_datetime=datetime(2026, 9, 28, 14, 0),
+    )
+    messages, skipped = sender([morning, afternoon])._plan()
+
+    assert len(messages) == 1
+    assert skipped == {"duplicate": 1}
+
+
+def test_each_court_date_gets_its_own_id():
+    """Someone in court on consecutive days hears about each, so the second
+    day's reminder must not look like a repeat of the first."""
+    monday, tuesday = (
+        reminder_id("SEVEN_DAYS", hearing(event_datetime=day), "+14045550101")
+        for day in (datetime(2026, 9, 28), datetime(2026, 9, 29))
+    )
+    assert monday != tuesday
+
+
 def test_an_id_carries_no_phone_number():
     """The sender prints this id when it suppresses a duplicate, and
     CloudWatch keeps logs for years."""
@@ -216,7 +304,9 @@ def test_a_dry_run_queues_nothing_and_shows_what_it_would_have_sent():
 
 
 def test_messages_are_queued_in_batches_of_ten():
-    hearings = [hearing(case_party_id=n) for n in range(23)]
+    hearings = [
+        hearing(case_party_id=n, phone_number=f"404-555-{n:04d}") for n in range(23)
+    ]
     client = FakeSqs()
     result = SevenDayReminder(
         repository=FakeRepository(hearings),
@@ -228,7 +318,7 @@ def test_messages_are_queued_in_batches_of_ten():
 
 def test_one_rejected_message_does_not_stop_the_others():
     rejected = sender().generate()[0].reminder_id
-    hearings = [hearing(), hearing(case_party_id=3)]
+    hearings = [hearing(), hearing(case_party_id=3, phone_number="404-555-0103")]
     client = FakeSqs(fail_ids=[rejected])
     result = SevenDayReminder(
         repository=FakeRepository(hearings),
