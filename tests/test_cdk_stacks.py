@@ -14,9 +14,9 @@ import pytest
 from aws_cdk.assertions import Match, Template
 
 import cdk_stack as reminder_module
-import database_stack as database_module
+import mock_database_stack as database_module
 from cdk_stack import CourtReminderStack
-from database_stack import CourtDatabaseStack
+from mock_database_stack import CourtMockDatabaseStack
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ENV = aws_cdk.Environment(account="123456789012", region="us-east-1")
@@ -26,27 +26,29 @@ def synth(local: bool, machine: str = "x86_64"):
     context = json.loads((REPO_ROOT / "cdk.json").read_text())["context"]
     context["aws:cdk:bundling-stacks"] = []
     app = aws_cdk.App(context=context)
-    database = CourtDatabaseStack(app, "CourtDatabaseStack", local=local, env=ENV)
+    mock_database = CourtMockDatabaseStack(
+        app, "CourtMockDatabaseStack", local=local, env=ENV
+    )
     original = reminder_module.platform.machine
     reminder_module.platform.machine = lambda: machine
     try:
         reminder = CourtReminderStack(
-            app, "CourtReminderStack", database=database, env=ENV
+            app, "CourtReminderStack", mock_database=mock_database, env=ENV
         )
     finally:
         reminder_module.platform.machine = original
-    return Template.from_stack(database), Template.from_stack(reminder)
+    return Template.from_stack(mock_database), Template.from_stack(reminder)
 
 
 def functions(template):
     return template.find_resources("AWS::Lambda::Function")
 
 
-def assert_endpoints(database):
+def assert_endpoints(mock_database):
     """The three routes out of the isolated subnets: Secrets Manager for the
     credentials, SQS for the reminders CourtBotMain queues, and S3 for the
     seed Lambda's answer to CloudFormation. There is no other way out."""
-    endpoints = database.find_resources("AWS::EC2::VPCEndpoint")
+    endpoints = mock_database.find_resources("AWS::EC2::VPCEndpoint")
     by_type = {}
     for resource in endpoints.values():
         props = resource["Properties"]
@@ -64,8 +66,8 @@ def assert_endpoints(database):
 
 
 def test_aws_database_is_encrypted_private_sql_server_with_no_nat():
-    database, _ = synth(local=False)
-    database.has_resource_properties(
+    mock_database, _ = synth(local=False)
+    mock_database.has_resource_properties(
         "AWS::RDS::DBInstance",
         {
             "Engine": "sqlserver-ex",
@@ -75,10 +77,10 @@ def test_aws_database_is_encrypted_private_sql_server_with_no_nat():
             "DeletionProtection": False,
         },
     )
-    database.resource_count_is("AWS::EC2::NatGateway", 0)
-    assert_endpoints(database)
-    database.resource_count_is("AWS::SecretsManager::SecretTargetAttachment", 1)
-    database.resource_count_is("Custom::VpcRestrictDefaultSG", 1)
+    mock_database.resource_count_is("AWS::EC2::NatGateway", 0)
+    assert_endpoints(mock_database)
+    mock_database.resource_count_is("AWS::SecretsManager::SecretTargetAttachment", 1)
+    mock_database.resource_count_is("Custom::VpcRestrictDefaultSG", 1)
 
 
 def test_aws_lambdas_join_the_vpc_and_read_the_secret():
@@ -415,17 +417,17 @@ def test_the_queue_hides_a_message_for_at_least_as_long_as_a_send_can_take():
 
 
 def test_local_database_is_postgres_with_plain_credentials_and_no_sg_lockdown():
-    database, _ = synth(local=True)
-    database.has_resource_properties(
+    mock_database, _ = synth(local=True)
+    mock_database.has_resource_properties(
         "AWS::RDS::DBInstance",
         {"Engine": "postgres", "DBName": "courtdb", "MasterUsername": "court"},
     )
-    database.resource_count_is("Custom::VpcRestrictDefaultSG", 0)
-    database.resource_count_is("AWS::SecretsManager::SecretTargetAttachment", 0)
-    assert_endpoints(database)
-    (instance,) = database.find_resources("AWS::RDS::DBInstance").values()
+    mock_database.resource_count_is("Custom::VpcRestrictDefaultSG", 0)
+    mock_database.resource_count_is("AWS::SecretsManager::SecretTargetAttachment", 0)
+    assert_endpoints(mock_database)
+    (instance,) = mock_database.find_resources("AWS::RDS::DBInstance").values()
     assert "DBInstanceIdentifier" not in instance["Properties"]
-    (secret,) = database.find_resources("AWS::SecretsManager::Secret").values()
+    (secret,) = mock_database.find_resources("AWS::SecretsManager::Secret").values()
     rendered = json.dumps(secret["Properties"]["SecretString"])
     for fragment in ('"username":"court"', '"password":"court"', '"dbname":"courtdb"'):
         assert fragment in rendered.replace(" ", "").replace("\\", "")
@@ -503,9 +505,9 @@ def test_seed_version_changes_when_a_seed_script_changes(tmp_path, monkeypatch):
 
 def test_database_stack_rejects_nothing_but_exposes_engine_and_flags():
     app = aws_cdk.App()
-    assert CourtDatabaseStack(app, "A", local=True).engine == "postgres"
-    assert CourtDatabaseStack(app, "B").engine == "sqlserver"
-    assert database_module.CourtDatabaseStack(app, "C", local=False).local is False
+    assert CourtMockDatabaseStack(app, "A", local=True).engine == "postgres"
+    assert CourtMockDatabaseStack(app, "B").engine == "sqlserver"
+    assert database_module.CourtMockDatabaseStack(app, "C", local=False).local is False
 
 
 # ------------------------------------------------- the daily reminder run
