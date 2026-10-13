@@ -40,6 +40,8 @@ mock_database = CourtMockDatabaseStack(
     env=environment,
 )
 
-CourtReminderStack(app, "CourtReminderStack", mock_database=mock_database, env=environment)
+CourtReminderStack(
+    app, "CourtReminderStack", mock_database=mock_database, env=environment
+)
 
 app.synth()

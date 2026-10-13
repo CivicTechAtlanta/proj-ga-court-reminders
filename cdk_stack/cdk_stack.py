@@ -84,7 +84,7 @@ class CourtReminderStack(Stack):
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
-        self._mock_database = mock_database 
+        self._mock_database = mock_database
 
         main = self._function("CourtBotMain", "main.py", timeout=Duration.minutes(15))
         sender = self._function(
