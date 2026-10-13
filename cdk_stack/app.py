@@ -17,7 +17,7 @@ import os
 import aws_cdk
 
 from cdk_stack import CourtReminderStack
-from database_stack import CourtDatabaseStack
+from mock_database_stack import CourtMockDatabaseStack
 from github_stack import GithubActionStack
 
 
@@ -33,13 +33,13 @@ if court_db not in {"aws", "local"}:
 
 GithubActionStack(app, "GithubActionStack")
 
-database = CourtDatabaseStack(
+mock_database = CourtMockDatabaseStack(
     app,
     "CourtDatabaseStack",
     local=court_db == "local",
     env=environment,
 )
 
-CourtReminderStack(app, "CourtReminderStack", database=database, env=environment)
+CourtReminderStack(app, "CourtReminderStack", mock_database=mock_database, env=environment)
 
 app.synth()
