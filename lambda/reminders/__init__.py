@@ -18,7 +18,6 @@ from .thresholds import (
     OneDayReminder,
     ReminderThreshold,
     SevenDayReminder,
-    ThreeDayReminder,
     every_sender,
     sender_for,
 )
@@ -31,7 +30,6 @@ __all__ = [
     "ReminderThreshold",
     "SenderLogic",
     "SevenDayReminder",
-    "ThreeDayReminder",
     "court_date",
     "every_sender",
     "outbox",

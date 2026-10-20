@@ -73,7 +73,6 @@ def sender(hearings=None, **kwargs):
 
 def test_each_threshold_knows_how_many_days_out_it_is():
     assert ReminderThreshold.SEVEN_DAYS.days == 7
-    assert ReminderThreshold.THREE_DAYS.days == 3
     assert ReminderThreshold.ONE_DAY.days == 1
 
 
@@ -82,7 +81,6 @@ def test_each_threshold_knows_how_many_days_out_it_is():
     [
         ("ONE_DAY", ReminderThreshold.ONE_DAY),
         ("one_day", ReminderThreshold.ONE_DAY),
-        (" Three_Days ", ReminderThreshold.THREE_DAYS),
         (7, ReminderThreshold.SEVEN_DAYS),
         (ReminderThreshold.ONE_DAY, ReminderThreshold.ONE_DAY),
     ],
@@ -97,8 +95,8 @@ def test_an_unknown_threshold_says_what_the_choices_are():
 
 
 def test_the_daily_run_counts_down_from_seven():
-    assert [s.days for s in every_sender()] == [7, 3, 1]
-    assert [s.label for s in every_sender()] == ["SEVEN_DAYS", "THREE_DAYS", "ONE_DAY"]
+    assert [s.days for s in every_sender()] == [7, 1]
+    assert [s.label for s in every_sender()] == ["SEVEN_DAYS", "ONE_DAY"]
 
 
 def test_a_sender_without_a_threshold_still_works_from_days_alone():
@@ -187,11 +185,6 @@ def copy_for(threshold, when) -> str:
             ReminderThreshold.SEVEN_DAYS,
             "ATL Court Reminders : Seven days notice. You have a court date "
             "on Monday, September 28. Reply STOP to discontinue.",
-        ),
-        (
-            ReminderThreshold.THREE_DAYS,
-            "ATL Court Reminders : Three days until your court date. You have "
-            "a court date on Monday, September 28. Reply STOP to discontinue.",
         ),
         (
             ReminderThreshold.ONE_DAY,

@@ -49,7 +49,6 @@ class ReminderThreshold(Enum):
     """
 
     SEVEN_DAYS = 7
-    THREE_DAYS = 3
     ONE_DAY = 1
 
     @property
@@ -89,19 +88,6 @@ class SevenDayReminder(SenderLogic):
         )
 
 
-class ThreeDayReminder(SenderLogic):
-    """Three days out: the reminder that lands while plans can still change."""
-
-    threshold = ReminderThreshold.THREE_DAYS
-
-    def message(self, hearing):
-        return (
-            "ATL Court Reminders : Three days until your court date. "
-            f"You have a court date on {court_date(hearing)}. "
-            "Reply STOP to discontinue."
-        )
-
-
 class OneDayReminder(SenderLogic):
     """The day before: short, specific, and about tomorrow."""
 
@@ -117,7 +103,6 @@ class OneDayReminder(SenderLogic):
 
 _SENDERS = {
     ReminderThreshold.SEVEN_DAYS: SevenDayReminder,
-    ReminderThreshold.THREE_DAYS: ThreeDayReminder,
     ReminderThreshold.ONE_DAY: OneDayReminder,
 }
 
