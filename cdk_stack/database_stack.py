@@ -10,7 +10,7 @@ from aws_cdk import (
 )
 
 
-class CourtMockDatabaseStack(Stack):
+class CourtDatabaseStack(Stack):
     """Placeholder RDS SQL Server matching the Odyssey-style court case DB.
 
     Sized for development: Express edition (no license cost), smallest
